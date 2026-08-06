@@ -11,6 +11,7 @@ import shutil
 import asyncio
 from uuid import uuid4
 import io
+import filetype
 
 from pydantic import BaseModel
 from passlib.context import CryptContext
@@ -33,7 +34,8 @@ from utils.database import (init_db_pool, close_db_pool,
                             get_all_sessions_data, edit_session_status, delete_session,
                             add_action_data, get_all_actions_data, delete_single_action, get_single_action_data,
                             get_all_ocr_data, get_single_ocr_data, delete_single_ocr_data,
-                            add_ocr_data, edit_ocr_status, update_ocr_data)
+                            add_file_ocr_data, add_url_ocr_data, edit_ocr_status, update_ocr_data,
+                            check_ocr_file_hash_existence)
 
 
 # ---------------------------------------------------------------------------
@@ -644,6 +646,16 @@ async def get_all_ocr_data_api(user_session_data = Depends(get_current_user)):
 
 @app.post('/api/external/ocr_files/', tags=["OCR Files"])
 async def ocr_files_api(input_file: UploadFile, request: Request):
+    """
+        1. IP authorization
+        2. Filename exists
+        3. Extension is allowed
+        4. File size
+        5. Read bytes
+        6. Magic bytes (filetype)
+        7. OCR
+    """
+
     client_ip = request.client.host
     if client_ip not in origins:
         raise HTTPException(status_code=403, detail="Not authorized!")
@@ -651,13 +663,73 @@ async def ocr_files_api(input_file: UploadFile, request: Request):
     if not input_file.filename:
         raise HTTPException(status_code=400, detail="Filename is missing!")
 
-    extension = Path(input_file.filename).suffix.lower()
-    if not extension:
-        raise HTTPException(status_code=400, detail="Unknown file type!")
+    ALLOWED_EXTENSIONS = {
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+    }
+    ext = Path(input_file.filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Unsupported file extension.")
 
-    ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg"}
-    if extension not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Unsupported file type!")
+    MAX_FILE_SIZE = 25 * 1024 * 1024
+    file = input_file.file
+    current = file.tell()
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(current)
+
+    if size > MAX_FILE_SIZE:
+        raise HTTPException(413, "File size exceeds 25 MB")
+    if size == 0:
+        raise HTTPException(400, "Empty file")
+
+
+    file_content = await input_file.read()
+
+
+    ALLOWED_TYPES = {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+    }
+    kind = filetype.guess(file_content)
+    if kind is None or kind.mime != ALLOWED_TYPES[ext]:
+        raise HTTPException(status_code=400, detail="File extension does not match file content.")
+    # Reset pointer for later OCR processing
+    await input_file.seek(0)
+
+
+    file_hash = hashlib.sha256(file_content).hexdigest()
+
+
+    file_data_existence = await check_ocr_file_hash_existence(file_hash)
+    if file_data_existence:
+        return {
+            'status': "Success",
+
+            'data': {
+                'filename': file_data_existence['filename'],
+                'file_extension': file_data_existence['file_extension'],
+                'file_size': file_data_existence['file_size'],
+                'page_count': file_data_existence['page_count'],
+                'language': file_data_existence['language'],
+                'extracted_text': file_data_existence['extracted_text'],
+                'extracted_length': file_data_existence['extracted_length']
+            }
+        }
+
+    unique_job_id = str(uuid4().hex)
+    request_type = 'file'
+
+    await add_file_ocr_data(request_ip_address=client_ip, unique_job_id=unique_job_id, request_type=request_type,
+                            file_hash=file_hash, filename=input_file.filename, file_extension=ext, mime_type=kind.mime,
+                            file_size=size, page_count=, 'processing', created_at=datetime.now(tz))
+
+    try:
+
 
 
 

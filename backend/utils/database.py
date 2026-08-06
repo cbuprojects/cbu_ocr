@@ -553,20 +553,33 @@ async def delete_single_ocr_data(unique_job_id: str):
     return affected if affected > 0 else None
 
 
-async def add_ocr_data(request_ip_address, unique_job_id, request_type, source_url, source_url_status,
-              file_hash, filename, file_extension, mime_type, file_size,
-              status, created_at):
+async def add_file_ocr_data(request_ip_address, unique_job_id, request_type, file_hash,
+                            filename, file_extension, mime_type, file_size, page_count, status, created_at):
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO user_actions (request_ip_address, unique_job_id, request_type, source_url, source_url_status,
-              file_hash, filename, file_extension, mime_type, file_size,
-              status, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            INSERT INTO ocr_requests (request_ip_address, unique_job_id, request_type, file_hash,
+             filename, file_extension, mime_type, file_size, page_count, status, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             """,
-            request_ip_address, unique_job_id, request_type, source_url, source_url_status,
-            file_hash, filename, file_extension, mime_type, file_size,
-            status, created_at
+            request_ip_address, unique_job_id, request_type, file_hash,
+            filename, file_extension, mime_type, file_size, page_count, status, created_at
+        )
+    return True
+
+
+async def add_url_ocr_data(request_ip_address, unique_job_id, request_type, file_hash, source_url, source_url_status,
+                            filename, file_extension, mime_type, file_size, page_count, status, created_at):
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO ocr_requests (request_ip_address, unique_job_id, request_type, file_hash, 
+                source_url, source_url_status, filename, file_extension,
+                mime_type, file_size, page_count, status, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            """,
+            request_ip_address, unique_job_id, request_type, file_hash, source_url, source_url_status,
+            filename, file_extension, mime_type, file_size, page_count, status, created_at
         )
     return True
 
@@ -591,3 +604,24 @@ async def update_ocr_data(unique_job_id: str, page_count, language, status, extr
         )
     affected = int(result.split()[-1])  # asyncpg returns e.g. "UPDATE 1"
     return True if affected > 0 else False
+
+
+async def check_ocr_file_hash_existence(file_hash: str):
+    """Fetch single ocr hash data."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT request_ip_address, unique_job_id, request_type, source_url, source_url_status,
+              file_hash, filename, file_extension, mime_type, file_size,
+              page_count, language, status, extracted_text, extracted_length,
+              created_at, duration, finished_at
+            FROM ocr_requests
+            WHERE file_hash = $1
+            """,
+            file_hash,
+        )
+
+    if row is None:
+        return None
+
+    return dict(row)
