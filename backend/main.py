@@ -112,10 +112,14 @@ async def log_requests(request: Request, call_next):
 async def startup_event():
     logger.info("🚀 Starting CBU API…")
     await init_db_pool()
+    logger.info("✅ DB pool initialized!")
 
     # await create_admin_user()
 
-    logger.info("✅ Startup complete: DB pool initialized")
+    logger.info("OCR is being initialized...🔎")
+    initialize_paddle_ocr()
+    logger.info("✅ Startup complete: OCR is initialized!")
+
 
 
 @app.on_event("shutdown")
