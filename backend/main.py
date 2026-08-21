@@ -19,7 +19,8 @@ import hmac
 import hashlib
 import secrets
 from zoneinfo import ZoneInfo
-
+from io import BytesIO
+from pypdf import PdfReader
 from functools import partial
 import random
 from fastapi import FastAPI, UploadFile, HTTPException, Form, BackgroundTasks, Request, Depends
@@ -36,6 +37,7 @@ from utils.database import (init_db_pool, close_db_pool,
                             get_all_ocr_data, get_single_ocr_data, delete_single_ocr_data,
                             add_file_ocr_data, add_url_ocr_data, edit_ocr_status, update_ocr_data,
                             check_ocr_file_hash_existence)
+from utils.ocr_set import initialize_paddle_ocr
 
 
 # ---------------------------------------------------------------------------
@@ -58,7 +60,7 @@ logger = logging.getLogger("cbu_api")
 # App setup
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title='CBU Incoterm Data Processing APIs', docs_url='/', redoc_url=None)
+app = FastAPI(title='Cbu OCR APIs', docs_url='/', redoc_url=None)
 
 origins = [
     "http://localhost:5173",
@@ -66,7 +68,7 @@ origins = [
 ]
 
 # origins = [
-#     "https://complaints.cbu.uz"
+#     "https://ocr.cbu.uz"
 # ]
 
 app.add_middleware(
@@ -645,7 +647,7 @@ async def get_all_ocr_data_api(user_session_data = Depends(get_current_user)):
 
 
 @app.post('/api/external/ocr_files/', tags=["OCR Files"])
-async def ocr_files_api(input_file: UploadFile, request: Request):
+async def ocr_files_api(input_file: UploadFile, source_url: str, source_url_status: int, request: Request):
     """
         1. IP authorization
         2. Filename exists
@@ -669,6 +671,7 @@ async def ocr_files_api(input_file: UploadFile, request: Request):
         ".jpg",
         ".jpeg",
     }
+
     ext = Path(input_file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Unsupported file extension.")
@@ -701,9 +704,12 @@ async def ocr_files_api(input_file: UploadFile, request: Request):
     # Reset pointer for later OCR processing
     await input_file.seek(0)
 
-
     file_hash = hashlib.sha256(file_content).hexdigest()
-
+    if ext == '.pdf':
+        reader = PdfReader(io.BytesIO(file_content))
+        page_number = len(reader.pages)
+    else:
+        page_number = 1
 
     file_data_existence = await check_ocr_file_hash_existence(file_hash)
     if file_data_existence:
@@ -713,20 +719,28 @@ async def ocr_files_api(input_file: UploadFile, request: Request):
             'data': {
                 'filename': file_data_existence['filename'],
                 'file_extension': file_data_existence['file_extension'],
+                'mime_type': file_data_existence['mime_type'],
                 'file_size': file_data_existence['file_size'],
                 'page_count': file_data_existence['page_count'],
                 'language': file_data_existence['language'],
+                'status': file_data_existence['status'],
                 'extracted_text': file_data_existence['extracted_text'],
-                'extracted_length': file_data_existence['extracted_length']
+                'extracted_length': file_data_existence['extracted_length'],
+                'created_at': file_data_existence['created_at'],
+                'duration': file_data_existence['duration'],
+                'finished_at': file_data_existence['finished_at']
             }
         }
 
     unique_job_id = str(uuid4().hex)
-    request_type = 'file'
 
-    await add_file_ocr_data(request_ip_address=client_ip, unique_job_id=unique_job_id, request_type=request_type,
-                            file_hash=file_hash, filename=input_file.filename, file_extension=ext, mime_type=kind.mime,
-                            file_size=size, page_count=, 'processing', created_at=datetime.now(tz))
+
+    await add_file_ocr_data(request_ip_address=client_ip, unique_job_id=unique_job_id,
+                            source_url=source_url, source_url_status=source_url_status,
+                            file_hash=file_hash, filename=input_file.filename,
+                            file_extension=ext, mime_type=kind.mime,
+                            file_size=size, page_count=page_number,
+                            status='processing', created_at=datetime.now(tz))
 
     try:
 

@@ -44,8 +44,6 @@ async def init_db_pool() -> None:
                 request_ip_address      INET,
                 unique_job_id           TEXT NOT NULL UNIQUE,
                 
-                request_type            TEXT NOT NULL CHECK(request_type IN('url', 'file')),
-                
                 source_url              TEXT,
                 source_url_status       INTEGER,
                 
@@ -59,10 +57,10 @@ async def init_db_pool() -> None:
                 
                 language                TEXT,
                 
-                status                  TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'success', 'failed')),
+                status                  TEXT NOT NULL CHECK (status IN ('processing', 'success', 'failed')),
                 
                 extracted_text          TEXT,
-                extracted_length        INTEGER,
+                extracted_text_length   INTEGER,
                 
                 created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 duration                BIGINT,
@@ -498,7 +496,6 @@ async def get_all_ocr_data():
                 SELECT
                     request_ip_address,
                     unique_job_id,
-                    request_type,
                     source_url,
                     source_url_status,
                     file_hash,
@@ -526,7 +523,7 @@ async def get_single_ocr_data(unique_job_id: str):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT request_ip_address, unique_job_id, request_type, source_url, source_url_status,
+            SELECT request_ip_address, unique_job_id, source_url, source_url_status,
               file_hash, filename, file_extension, mime_type, file_size,
               page_count, language, status, extracted_text, extracted_length,
               created_at, duration, finished_at
@@ -553,32 +550,32 @@ async def delete_single_ocr_data(unique_job_id: str):
     return affected if affected > 0 else None
 
 
-async def add_file_ocr_data(request_ip_address, unique_job_id, request_type, file_hash,
+async def add_file_ocr_data(request_ip_address, unique_job_id, source_url, source_url_status, file_hash,
                             filename, file_extension, mime_type, file_size, page_count, status, created_at):
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO ocr_requests (request_ip_address, unique_job_id, request_type, file_hash,
+            INSERT INTO ocr_requests (request_ip_address, unique_job_id, source_url, source_url_status, file_hash,
              filename, file_extension, mime_type, file_size, page_count, status, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             """,
-            request_ip_address, unique_job_id, request_type, file_hash,
+            request_ip_address, unique_job_id, source_url, source_url_status, file_hash,
             filename, file_extension, mime_type, file_size, page_count, status, created_at
         )
     return True
 
 
-async def add_url_ocr_data(request_ip_address, unique_job_id, request_type, file_hash, source_url, source_url_status,
+async def add_url_ocr_data(request_ip_address, unique_job_id, source_url, source_url_status, file_hash,
                             filename, file_extension, mime_type, file_size, page_count, status, created_at):
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO ocr_requests (request_ip_address, unique_job_id, request_type, file_hash, 
-                source_url, source_url_status, filename, file_extension,
+            INSERT INTO ocr_requests (request_ip_address, unique_job_id, source_url,
+                source_url_status, file_hash, filename, file_extension,
                 mime_type, file_size, page_count, status, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             """,
-            request_ip_address, unique_job_id, request_type, file_hash, source_url, source_url_status,
+            request_ip_address, unique_job_id, source_url, source_url_status, file_hash,
             filename, file_extension, mime_type, file_size, page_count, status, created_at
         )
     return True
@@ -588,7 +585,7 @@ async def edit_ocr_status(unique_job_id: str, status: str):
     """Edit user ocr status."""
     async with pool.acquire() as conn:
         result = await conn.execute(
-            "UPDATE ocr_requests SET ocr_status = $2 WHERE unique_job_id = $1",
+            "UPDATE ocr_requests SET status = $2 WHERE unique_job_id = $1",
             unique_job_id, status
         )
     affected = int(result.split()[-1])  # asyncpg returns e.g. "UPDATE 1"
@@ -599,7 +596,9 @@ async def update_ocr_data(unique_job_id: str, page_count, language, status, extr
     """Update user ocr data."""
     async with pool.acquire() as conn:
         result = await conn.execute(
-            "UPDATE ocr_requests SET page_count=$2, language=$3, status=$4, extracted_text=$5, extracted_length=$6, duration=$7, finished_at=$8 WHERE unique_job_id=$1",
+            """UPDATE ocr_requests SET page_count=$2, language=$3, status=$4, extracted_text=$5,
+               extracted_length=$6, duration=$7, finished_at=$8 WHERE unique_job_id=$1
+            """,
             unique_job_id, page_count, language, status, extracted_text, extracted_length, duration, finished_at
         )
     affected = int(result.split()[-1])  # asyncpg returns e.g. "UPDATE 1"
@@ -611,7 +610,7 @@ async def check_ocr_file_hash_existence(file_hash: str):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT request_ip_address, unique_job_id, request_type, source_url, source_url_status,
+            SELECT request_ip_address, unique_job_id, source_url, source_url_status,
               file_hash, filename, file_extension, mime_type, file_size,
               page_count, language, status, extracted_text, extracted_length,
               created_at, duration, finished_at
