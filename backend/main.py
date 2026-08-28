@@ -35,7 +35,7 @@ from utils.database import (init_db_pool, close_db_pool,
                             get_all_sessions_data, edit_session_status, delete_session,
                             add_action_data, get_all_actions_data, delete_single_action, get_single_action_data,
                             get_all_ocr_data, get_single_ocr_data, delete_single_ocr_data,
-                            add_file_ocr_data, add_url_ocr_data, edit_ocr_status, update_ocr_data,
+                            add_ocr_data, edit_ocr_status, update_ocr_data,
                             check_ocr_file_hash_existence)
 from utils.ocr_set import initialize_paddle_ocr
 
@@ -117,7 +117,8 @@ async def startup_event():
     # await create_admin_user()
 
     logger.info("OCR is being initialized...🔎")
-    initialize_paddle_ocr()
+    app.state.ocr_pipeline = initialize_paddle_ocr()
+    app.state.ocr_semaphore = asyncio.Semaphore(1)
     logger.info("✅ Startup complete: OCR is initialized!")
 
 
@@ -692,9 +693,7 @@ async def ocr_files_api(input_file: UploadFile, source_url: str, source_url_stat
     if size == 0:
         raise HTTPException(400, "Empty file")
 
-
     file_content = await input_file.read()
-
 
     ALLOWED_TYPES = {
         ".pdf": "application/pdf",
@@ -719,7 +718,6 @@ async def ocr_files_api(input_file: UploadFile, source_url: str, source_url_stat
     if file_data_existence:
         return {
             'status': "Success",
-
             'data': {
                 'filename': file_data_existence['filename'],
                 'file_extension': file_data_existence['file_extension'],
@@ -738,15 +736,16 @@ async def ocr_files_api(input_file: UploadFile, source_url: str, source_url_stat
 
     unique_job_id = str(uuid4().hex)
 
-
-    await add_file_ocr_data(request_ip_address=client_ip, unique_job_id=unique_job_id,
-                            source_url=source_url, source_url_status=source_url_status,
-                            file_hash=file_hash, filename=input_file.filename,
-                            file_extension=ext, mime_type=kind.mime,
-                            file_size=size, page_count=page_number,
-                            status='processing', created_at=datetime.now(tz))
+    await add_ocr_data(request_ip_address=client_ip, unique_job_id=unique_job_id,
+                       source_url=source_url, source_url_status=source_url_status,
+                       file_hash=file_hash, filename=input_file.filename,
+                       file_extension=ext, mime_type=kind.mime,
+                       file_size=size, page_count=page_number,
+                       status='processing', created_at=datetime.now(tz))
 
     try:
+
+
 
 
 
