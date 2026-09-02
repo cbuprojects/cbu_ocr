@@ -652,7 +652,7 @@ async def get_all_ocr_data_api(user_session_data = Depends(get_current_user)):
 
 
 @app.post('/api/external/ocr_files/', tags=["OCR Files"])
-async def ocr_files_api(input_file: UploadFile, source_url: str, source_url_status: int, request: Request):
+async def ocr_files_api(input_file: UploadFile, request: Request):
     """
         1. IP authorization
         2. Filename exists
@@ -737,13 +737,19 @@ async def ocr_files_api(input_file: UploadFile, source_url: str, source_url_stat
     unique_job_id = str(uuid4().hex)
 
     await add_ocr_data(request_ip_address=client_ip, unique_job_id=unique_job_id,
-                       source_url=source_url, source_url_status=source_url_status,
                        file_hash=file_hash, filename=input_file.filename,
                        file_extension=ext, mime_type=kind.mime,
                        file_size=size, page_count=page_number,
                        status='processing', created_at=datetime.now(tz))
 
     try:
+        temp_path = Path('temp/external') / f"{input_file.filename}{ext}"
+        temp_path.write_bytes(file_content)
+
+
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 

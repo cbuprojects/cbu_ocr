@@ -43,18 +43,14 @@ async def init_db_pool() -> None:
                 id                      SERIAL PRIMARY KEY,
                 request_ip_address      INET,
                 unique_job_id           TEXT NOT NULL UNIQUE,
-                
-                source_url              TEXT,
-                source_url_status       INTEGER,
-                
-                file_hash               TEXT,
-                filename                TEXT,
-                file_extension          TEXT,
-                mime_type               TEXT,
+                                
+                file_hash               TEXT NOT NULL,
+                filename                TEXT NOT NULL,
+                file_extension          TEXT NOT NULL,
+                mime_type               TEXT NOT NULL,
                 
                 file_size               BIGINT,
                 page_count              INTEGER,
-                
                 language                TEXT,
                 
                 status                  TEXT NOT NULL CHECK (status IN ('processing', 'success', 'failed')),
@@ -496,8 +492,6 @@ async def get_all_ocr_data():
                 SELECT
                     request_ip_address,
                     unique_job_id,
-                    source_url,
-                    source_url_status,
                     file_hash,
                     filename,
                     file_extension,
@@ -523,7 +517,7 @@ async def get_single_ocr_data(unique_job_id: str):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT request_ip_address, unique_job_id, source_url, source_url_status,
+            SELECT request_ip_address, unique_job_id,
               file_hash, filename, file_extension, mime_type, file_size,
               page_count, language, status, extracted_text, extracted_length,
               created_at, duration, finished_at
@@ -550,16 +544,16 @@ async def delete_single_ocr_data(unique_job_id: str):
     return affected if affected > 0 else None
 
 
-async def add_ocr_data(request_ip_address, unique_job_id, source_url, source_url_status, file_hash,
+async def add_ocr_data(request_ip_address, unique_job_id, file_hash,
                             filename, file_extension, mime_type, file_size, page_count, status, created_at):
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO ocr_requests (request_ip_address, unique_job_id, source_url, source_url_status, file_hash,
+            INSERT INTO ocr_requests (request_ip_address, unique_job_id, file_hash,
              filename, file_extension, mime_type, file_size, page_count, status, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             """,
-            request_ip_address, unique_job_id, source_url, source_url_status, file_hash,
+            request_ip_address, unique_job_id, file_hash,
             filename, file_extension, mime_type, file_size, page_count, status, created_at
         )
     return True
@@ -594,7 +588,7 @@ async def check_ocr_file_hash_existence(file_hash: str):
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT request_ip_address, unique_job_id, source_url, source_url_status,
+            SELECT request_ip_address, unique_job_id,
               file_hash, filename, file_extension, mime_type, file_size,
               page_count, language, status, extracted_text, extracted_length,
               created_at, duration, finished_at
