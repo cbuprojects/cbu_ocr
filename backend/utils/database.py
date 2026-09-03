@@ -53,13 +53,13 @@ async def init_db_pool() -> None:
                 page_count              INTEGER,
                 language                TEXT,
                 
-                status                  TEXT NOT NULL CHECK (status IN ('processing', 'success', 'failed')),
+                status                  TEXT NOT NULL CHECK (status IN ('processing', 'success', 'failed', 'timeout')),
                 
                 extracted_text          TEXT,
                 extracted_text_length   INTEGER,
                 
                 created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                duration                BIGINT,
+                duration                NUMERIC(10,2),
                 finished_at             TIMESTAMPTZ
                 
             )
@@ -501,7 +501,7 @@ async def get_all_ocr_data():
                     language,
                     status,
                     extracted_text, 
-                    extracted_length,
+                    extracted_text_length,
                     created_at,
                     duration,
                     finished_at
@@ -519,7 +519,7 @@ async def get_single_ocr_data(unique_job_id: str):
             """
             SELECT request_ip_address, unique_job_id,
               file_hash, filename, file_extension, mime_type, file_size,
-              page_count, language, status, extracted_text, extracted_length,
+              page_count, language, status, extracted_text, extracted_text_length,
               created_at, duration, finished_at
             FROM ocr_requests
             WHERE unique_job_id = $1
@@ -570,14 +570,14 @@ async def update_ocr_status(unique_job_id: str, status: str):
     return True if affected > 0 else False
 
 
-async def update_ocr_data(unique_job_id: str, page_count, language, status, extracted_text, extracted_length, duration, finished_at):
+async def update_ocr_data(unique_job_id: str, page_count, language, status, extracted_text, extracted_text_length, duration, finished_at):
     """Update user ocr data."""
     async with pool.acquire() as conn:
         result = await conn.execute(
             """UPDATE ocr_requests SET page_count=$2, language=$3, status=$4, extracted_text=$5,
-               extracted_length=$6, duration=$7, finished_at=$8 WHERE unique_job_id=$1
+               extracted_text_length=$6, duration=$7, finished_at=$8 WHERE unique_job_id=$1
             """,
-            unique_job_id, page_count, language, status, extracted_text, extracted_length, duration, finished_at
+            unique_job_id, page_count, language, status, extracted_text, extracted_text_length, duration, finished_at
         )
     affected = int(result.split()[-1])  # asyncpg returns e.g. "UPDATE 1"
     return True if affected > 0 else False
@@ -590,10 +590,10 @@ async def check_ocr_file_hash_existence(file_hash: str):
             """
             SELECT request_ip_address, unique_job_id,
               file_hash, filename, file_extension, mime_type, file_size,
-              page_count, language, status, extracted_text, extracted_length,
+              page_count, language, status, extracted_text, extracted_text_length,
               created_at, duration, finished_at
             FROM ocr_requests
-            WHERE file_hash = $1
+            WHERE file_hash = $1 AND status = 'success'
             """,
             file_hash,
         )

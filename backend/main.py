@@ -35,9 +35,11 @@ from utils.database import (init_db_pool, close_db_pool,
                             get_all_sessions_data, edit_session_status, delete_session,
                             add_action_data, get_all_actions_data, delete_single_action, get_single_action_data,
                             get_all_ocr_data, get_single_ocr_data, delete_single_ocr_data,
-                            add_ocr_data, edit_ocr_status, update_ocr_data,
+                            add_ocr_data, update_ocr_data, update_ocr_status,
                             check_ocr_file_hash_existence)
-from utils.ocr_set import initialize_paddle_ocr
+from utils.ocr_set import (initialize_paddle_ocr, initialize_docling, pdf_is_selectable,
+                           extract_docx_text, extract_single_page, extract_multi_page)
+from utils.language import detect_language
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +121,13 @@ async def startup_event():
     logger.info("OCR is being initialized...🔎")
     app.state.ocr_pipeline = initialize_paddle_ocr()
     app.state.ocr_semaphore = asyncio.Semaphore(1)
-    logger.info("✅ Startup complete: OCR is initialized!")
+    logger.info("✅ OCR initialized!")
+
+    logger.info("Docling is being initialized...📄")
+    app.state.docling_converter = initialize_docling()
+    logger.info("✅ Startup complete!")
+
+
 
 
 
@@ -671,6 +679,7 @@ async def ocr_files_api(input_file: UploadFile, request: Request):
         raise HTTPException(status_code=400, detail="Filename is missing!")
 
     ALLOWED_EXTENSIONS = {
+        ".docx",
         ".pdf",
         ".png",
         ".jpg",
@@ -700,6 +709,8 @@ async def ocr_files_api(input_file: UploadFile, request: Request):
         ".png": "image/png",
         ".jpg": "image/jpeg",
         ".jpeg": "image/jpeg",
+        ".docx": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                  "application/zip"},
     }
     kind = filetype.guess(file_content)
     if kind is None or kind.mime != ALLOWED_TYPES[ext]:
@@ -727,7 +738,7 @@ async def ocr_files_api(input_file: UploadFile, request: Request):
                 'language': file_data_existence['language'],
                 'status': file_data_existence['status'],
                 'extracted_text': file_data_existence['extracted_text'],
-                'extracted_length': file_data_existence['extracted_length'],
+                'extracted_text_length': file_data_existence['extracted_text_length'],
                 'created_at': file_data_existence['created_at'],
                 'duration': file_data_existence['duration'],
                 'finished_at': file_data_existence['finished_at']
@@ -735,21 +746,99 @@ async def ocr_files_api(input_file: UploadFile, request: Request):
         }
 
     unique_job_id = str(uuid4().hex)
-
+    created_at = datetime.now(tz)
+    filename = f'filename_{unique_job_id}'
     await add_ocr_data(request_ip_address=client_ip, unique_job_id=unique_job_id,
-                       file_hash=file_hash, filename=input_file.filename,
+                       file_hash=file_hash, filename=filename,
                        file_extension=ext, mime_type=kind.mime,
                        file_size=size, page_count=page_number,
-                       status='processing', created_at=datetime.now(tz))
+                       status='processing', created_at=created_at)
+
+    temp_dir = Path('temp_files/external')
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    temp_file_path = temp_dir / f"filename_{unique_job_id}{ext}"
+    file_path = str(temp_file_path)
 
     try:
-        temp_path = Path('temp/external') / f"{input_file.filename}{ext}"
-        temp_path.write_bytes(file_content)
+        temp_file_path.write_bytes(file_content)
+        if ext == '.docx':
+            final_text = await asyncio.wait_for(asyncio.to_thread(extract_docx_text,
+                                                            request.app.state.docling_converter,
+                                                            file_path), timeout=120)
 
+        elif ext == '.pdf':
+            if pdf_is_selectable(path=file_path, min_chars=50):
+                final_text = await asyncio.wait_for(asyncio.to_thread(extract_docx_text,
+                                                                      request.app.state.docling_converter,
+                                                                      file_path), timeout=120)
+            else:
+                if page_number == 1:
+                    async with request.app.state.ocr_semaphore:
+                        final_text = await asyncio.wait_for(
+                            asyncio.to_thread(extract_single_page,
+                                              request.app.state.ocr_pipeline,
+                                              file_path),
+                            timeout=page_number * 30 + 60,
+                        )
 
+                else:
+                    async with request.app.state.ocr_semaphore:
+                        final_text = await asyncio.wait_for(
+                            asyncio.to_thread(extract_multi_page,
+                                              request.app.state.ocr_pipeline,
+                                              file_path),
+                            timeout=page_number * 30 + 60,
+                        )
 
+        elif ext == '.jpg' or ext == '.jpeg' or ext == '.png':
+            async with request.app.state.ocr_semaphore:
+                final_text = await asyncio.wait_for(
+                    asyncio.to_thread(extract_single_page,
+                                      request.app.state.ocr_pipeline,
+                                      file_path),
+                    timeout=90,
+                )
+    except asyncio.TimeoutError:
+        await update_ocr_data(unique_job_id=unique_job_id, page_count=page_number,
+                              language=None, status='timeout', extracted_text=None,
+                              extracted_text_length=0, duration=0,
+                              finished_at=datetime.now(tz))
+        raise HTTPException(504, "Extraction timed out")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.exception("extraction failed: %s", unique_job_id)
+        await update_ocr_data(unique_job_id=unique_job_id, page_count=page_number,
+                              language=None, status='failed', extracted_text=None,
+                              extracted_text_length=0, duration=0,
+                              finished_at=datetime.now(tz))
+        raise HTTPException(500, f"Extraction failed: {e}")
+    finally:
+        temp_file_path.unlink(missing_ok=True)
+
+
+    finished_at = datetime.now(tz)
+    duration = (finished_at - created_at).total_seconds()
+    language = detect_language(text=final_text)
+    await update_ocr_data(unique_job_id=unique_job_id, page_count=page_number, language=language,
+                          status='success', extracted_text=final_text, extracted_text_length=len(final_text),
+                          duration=duration, finished_at=finished_at)
+
+    return {
+        'status': "Success",
+        'data': {
+            'filename': filename,
+            'file_extension': ext,
+            'mime_type': kind.mime,
+            'file_size': size,
+            'page_count': page_number,
+            'language': language,
+            'status': 'success',
+            'extracted_text': final_text,
+            'extracted_text_length': len(final_text),
+            'created_at': created_at,
+            'duration': duration,
+            'finished_at': finished_at,
+        }
+    }
 
 
 
