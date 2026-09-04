@@ -11,8 +11,9 @@ import shutil
 import asyncio
 from uuid import uuid4
 import io
+from decimal import Decimal
 import filetype
-
+from dotenv import load_dotenv
 from pydantic import BaseModel
 from passlib.context import CryptContext
 import hmac
@@ -27,16 +28,20 @@ from fastapi import FastAPI, UploadFile, HTTPException, Form, BackgroundTasks, R
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
-
+from utils.logging_setup import setup_logging, get_logger
 from utils.database import (init_db_pool, close_db_pool,
                             create_superuser, create_user_session, get_session, logout_user_session, expire_user_session,
                             edit_user_language, add_new_user, get_user, get_user_id, get_all_users, edit_user_details,
                             edit_user_password, delete_user,
                             get_all_sessions_data, edit_session_status, delete_session,
                             add_action_data, get_all_actions_data, delete_single_action, get_single_action_data,
-                            get_all_ocr_data, get_single_ocr_data, delete_single_ocr_data,
-                            add_ocr_data, update_ocr_data, update_ocr_status,
-                            check_ocr_file_hash_existence)
+                            get_all_external_ocr_data, get_single_external_ocr_data, delete_single_external_ocr_data,
+                            add_external_ocr_data, update_external_ocr_data, update_external_ocr_status,
+                            check_external_ocr_file_hash_existence,
+                            get_all_internal_ocr_data, get_single_internal_ocr_data, delete_single_internal_ocr_data,
+                            add_internal_ocr_data, update_internal_ocr_data, update_internal_ocr_status,
+                            check_internal_ocr_file_hash_existence,
+                            get_user_internal_ocr_data)
 from utils.ocr_set import (initialize_paddle_ocr, initialize_docling, pdf_is_selectable,
                            extract_docx_text, extract_single_page, extract_multi_page)
 from utils.language import detect_language
@@ -46,17 +51,11 @@ from utils.language import detect_language
 # Logging configuration
 # ---------------------------------------------------------------------------
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[
-        logging.StreamHandler(),                          # stdout
-        logging.FileHandler("logs/app.log", encoding="utf-8") # persistent log file
-    ]
-)
+setup_logging()
 
-logger = logging.getLogger("cbu_api")
+logger = get_logger("cbu_api")
+external_logger = get_logger("cbu_api.external", "external.log")
+internal_logger = get_logger("cbu_api.internal", "internal.log")
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -64,14 +63,19 @@ logger = logging.getLogger("cbu_api")
 
 app = FastAPI(title='Cbu OCR APIs', docs_url='/', redoc_url=None)
 
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+load_dotenv()
 
 # origins = [
-#     "https://ocr.cbu.uz"
+#    os.getenv('LOCAL_ORIGIN_1'),
+#    os.getenv('LOCAL_ORIGIN_2')
 # ]
+
+origins = [
+    os.getenv('PROD_ORIGIN')
+]
+
+allowed_ips = [os.getenv("ALLOWED_IP")]
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -117,14 +121,18 @@ async def startup_event():
     logger.info("✅ DB pool initialized!")
 
     # await create_admin_user()
+    app.state.ocr_queue_depth = 0
+    logger.info('OCR has no queue ✅')
 
     logger.info("OCR is being initialized...🔎")
     app.state.ocr_pipeline = initialize_paddle_ocr()
     app.state.ocr_semaphore = asyncio.Semaphore(1)
+    app.state.paddle_queue = 0
     logger.info("✅ OCR initialized!")
 
     logger.info("Docling is being initialized...📄")
     app.state.docling_converter = initialize_docling()
+    app.state.docling_queue = 0
     logger.info("✅ Startup complete!")
 
 
@@ -638,46 +646,111 @@ async def delete_user_action_api(data: DeleteActionsData, user_session_data = De
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-# ocr
+# ocr all external
 # ----------------------------------------------------------------------------------------------------------------------
 
-@app.get('/api/get_all_ocr_data', tags=["Get All Ocr Data"])
-async def get_all_ocr_data_api(user_session_data = Depends(get_current_user)):
+@app.get('/api/get_all_external_ocr_data', tags=["Get All External Ocr Data"])
+async def get_all_external_ocr_data_api(user_session_data = Depends(get_current_user)):
     user = user_session_data['user']
     if not user:
-        logger.warning("get_all_ocr_data | Missing user")
+        logger.warning("get_all_external_ocr_data | Missing user")
         raise HTTPException(status_code=401, detail="Not Authorized!")
 
-    logger.info("get_all_ocr_data | Fetching all ocr data")
-    all_ocr_data = await get_all_ocr_data()
+    if not user['is_admin']:
+        raise HTTPException(403, "User does not have admin rights!")
 
-    if not all_ocr_data:
-        logger.warning("get_all_ocr_data | No ocr data found in DB")
-        return {"Status": 'Failed', 'user': user, 'Data': all_ocr_data}
+    logger.info("get_all_external_ocr_data | Fetching all external ocr data")
+    all_external_ocr_data = await get_all_external_ocr_data()
 
-    logger.info("get_all_ocr_data | Returned %d records", len(all_ocr_data))
-    return {"Status": 'Success', 'user': user, 'Data': all_ocr_data}
+    if not all_external_ocr_data:
+        logger.warning("get_all_external_ocr_data | No external ocr data found in DB")
+        return {"Status": 'Failed', 'user': user, 'Data': all_external_ocr_data}
+
+    logger.info("get_all_external_ocr_data | Returned %d records", len(all_external_ocr_data))
+    return {"Status": 'Success', 'user': user, 'Data': all_external_ocr_data}
 
 
-@app.post('/api/external/ocr_files/', tags=["OCR Files"])
-async def ocr_files_api(input_file: UploadFile, request: Request):
+class ExternalOcrDeleteData(BaseModel):
+    unique_job_id: str
+@app.delete('/api/delete_external_ocr_data', tags=["Delete External Ocr Data"])
+async def delete_external_ocr_data_api(data: ExternalOcrDeleteData, user_session_data = Depends(get_current_user)):
+    user = user_session_data['user']
+    if not user:
+        logger.warning("delete_external_ocr_data | Missing user")
+        raise HTTPException(status_code=401, detail="Not Authorized!")
+
+    if not user['is_admin']:
+        raise HTTPException(403, "User does not have admin rights!")
+
+    unique_job_id = str(uuid4().hex)
+    user_session = await get_session(session_id=user_session_data['session_id'])
+
+    try:
+        logger.info("delete_external_ocr_data | unique_job_id=%s", data.unique_job_id)
+        if not data.unique_job_id:
+            logger.warning("delete_external_ocr_data | Missing Job data!")
+            raise HTTPException(status_code=400, detail="Job Data is required")
+
+        checking_data_existence = await get_single_external_ocr_data(unique_job_id=data.unique_job_id)
+        if not checking_data_existence:
+            logger.warning("delete_external_ocr_data | Not found: job_data=%s", data.unique_job_id)
+            raise HTTPException(status_code=404, detail="Such data does not exist!")
+
+        deleted_row = await delete_single_external_ocr_data(unique_job_id=data.unique_job_id)
+        if not deleted_row:
+            logger.error("delete_external_ocr_data | DB delete failed for unique_job_id=%s", data.unique_job_id)
+            raise HTTPException(status_code=404, detail="Such data does not exist!")
+
+        await add_action_data(user_id=user['user_id'], unique_job_id=unique_job_id,
+                              session_id=user_session_data["session_id"], ip_address=user_session['ip_address'],
+                              action='Deleted External Job Data Request', action_status="success", created_at=datetime.now(tz))
+
+        logger.info("delete_external_ocr_data | Deleted unique_job_id=%s", data.unique_job_id)
+        return {"Status": 'Success', 'Data': 'Deleted successfully!'}
+    except Exception as e:
+        await add_action_data(user_id=user['user_id'], unique_job_id=unique_job_id,
+                              session_id=user_session_data["session_id"], ip_address=user_session['ip_address'],
+                              action='Deleted External Job Data Request', action_status="failed", created_at=datetime.now(tz))
+        logger.error("delete_external_ocr_data | Failed to delete unique_job_id=%s, error=%s", data.unique_job_id, e)
+        raise HTTPException(status_code=404, detail="Could not delete the external unique_job_id!")
+
+
+@app.post('/api/external/ocr_files/', tags=["OCR External Files"])
+async def ocr_external_files_api(input_file: UploadFile, request: Request):
     """
-        1. IP authorization
-        2. Filename exists
-        3. Extension is allowed
-        4. File size
-        5. Read bytes
-        6. Magic bytes (filetype)
-        7. OCR
-    """
+        External OCR endpoint — called by the complaints service.
 
+            1. IP authorization
+            2. Filename exists
+            3. Extension is allowed
+            4. File size
+            5. Read bytes
+            6. Magic bytes (filetype)
+            7. Hash + dedup
+            8. Route: docling (docx / selectable pdf) or PaddleOCR-VL (scan / image)
+            9. Detect language, persist, return text
+        """
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # IP Auth
+    # ------------------------------------------------------------------------------------------------------------------
     client_ip = request.client.host
-    if client_ip not in origins:
+    if client_ip not in allowed_ips:
+        external_logger.warning("🚫 rejected | ip=%s | not in allowlist", client_ip)
         raise HTTPException(status_code=403, detail="Not authorized!")
 
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Filename check
+    # ------------------------------------------------------------------------------------------------------------------
     if not input_file.filename:
+        external_logger.warning("🚫 rejected | ip=%s | missing filename", client_ip)
         raise HTTPException(status_code=400, detail="Filename is missing!")
 
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Extensions check
+    # ------------------------------------------------------------------------------------------------------------------
     ALLOWED_EXTENSIONS = {
         ".docx",
         ".pdf",
@@ -688,8 +761,13 @@ async def ocr_files_api(input_file: UploadFile, request: Request):
 
     ext = Path(input_file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
+        external_logger.warning("🚫 rejected | ip=%s | bad extension=%s", client_ip, ext)
         raise HTTPException(status_code=400, detail="Unsupported file extension.")
 
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # File size check
+    # ------------------------------------------------------------------------------------------------------------------
     MAX_FILE_SIZE = 25 * 1024 * 1024
     file = input_file.file
     current = file.tell()
@@ -698,26 +776,44 @@ async def ocr_files_api(input_file: UploadFile, request: Request):
     file.seek(current)
 
     if size > MAX_FILE_SIZE:
+        external_logger.warning("🚫 rejected | ip=%s | too large=%.1f MB",
+                                client_ip, size / 1024 / 1024)
         raise HTTPException(413, "File size exceeds 25 MB")
     if size == 0:
+        external_logger.warning("🚫 rejected | ip=%s | empty file", client_ip)
         raise HTTPException(400, "Empty file")
 
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Reading bytes
+    # ------------------------------------------------------------------------------------------------------------------
     file_content = await input_file.read()
 
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Filetype
+    # ------------------------------------------------------------------------------------------------------------------
     ALLOWED_TYPES = {
-        ".pdf": "application/pdf",
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
+        ".pdf":  {"application/pdf"},
+        ".png":  {"image/png"},
+        ".jpg":  {"image/jpeg"},
+        ".jpeg": {"image/jpeg"},
         ".docx": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                   "application/zip"},
     }
     kind = filetype.guess(file_content)
-    if kind is None or kind.mime != ALLOWED_TYPES[ext]:
-        raise HTTPException(status_code=400, detail="File extension does not match file content.")
+    if kind is None or kind.mime not in ALLOWED_TYPES[ext]:
+        external_logger.warning("🚫 rejected | ip=%s | ext=%s mime=%s mismatch",
+                                client_ip, ext, kind.mime if kind else None)
+        raise HTTPException(status_code=400,
+                            detail="File extension does not match file content.")
     # Reset pointer for later OCR processing
-    await input_file.seek(0)
+    # await input_file.seek(0)
 
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # File hash check
+    # ------------------------------------------------------------------------------------------------------------------
     file_hash = hashlib.sha256(file_content).hexdigest()
     if ext == '.pdf':
         reader = PdfReader(io.BytesIO(file_content))
@@ -725,8 +821,10 @@ async def ocr_files_api(input_file: UploadFile, request: Request):
     else:
         page_number = 1
 
-    file_data_existence = await check_ocr_file_hash_existence(file_hash)
+    file_data_existence = await check_external_ocr_file_hash_existence(file_hash)
     if file_data_existence:
+        external_logger.info("♻️  cache hit | ip=%s | hash=%s | job=%s",
+                             client_ip, file_hash[:12], file_data_existence['unique_job_id'])
         return {
             'status': "Success",
             'data': {
@@ -745,82 +843,139 @@ async def ocr_files_api(input_file: UploadFile, request: Request):
             }
         }
 
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # New File
+    # ------------------------------------------------------------------------------------------------------------------
     unique_job_id = str(uuid4().hex)
     created_at = datetime.now(tz)
     filename = f'filename_{unique_job_id}'
-    await add_ocr_data(request_ip_address=client_ip, unique_job_id=unique_job_id,
+    await add_external_ocr_data(request_ip_address=client_ip, unique_job_id=unique_job_id,
                        file_hash=file_hash, filename=filename,
                        file_extension=ext, mime_type=kind.mime,
                        file_size=size, page_count=page_number,
                        status='processing', created_at=created_at)
+
+    app.state.ocr_queue_depth += 1
+
+    external_logger.info(
+        "📥 accepted | job=%s | ip=%s | ext=%s | %.1f KB | pages=%d | hash=%s",
+        unique_job_id, client_ip, ext, size / 1024, page_number, file_hash[:12]
+    )
 
     temp_dir = Path('temp_files/external')
     temp_dir.mkdir(parents=True, exist_ok=True)
     temp_file_path = temp_dir / f"filename_{unique_job_id}{ext}"
     file_path = str(temp_file_path)
 
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Routing OCR tool
+    # ------------------------------------------------------------------------------------------------------------------
+    final_text = None
+    method = None
     try:
         temp_file_path.write_bytes(file_content)
         if ext == '.docx':
-            final_text = await asyncio.wait_for(asyncio.to_thread(extract_docx_text,
-                                                            request.app.state.docling_converter,
-                                                            file_path), timeout=120)
+            method = 'docling'
+            app.state.docling_queue += 1
+            final_text = await asyncio.wait_for(asyncio.to_thread(extract_docx_text,app.state.docling_converter, file_path), timeout=120)
 
         elif ext == '.pdf':
-            if pdf_is_selectable(path=file_path, min_chars=50):
-                final_text = await asyncio.wait_for(asyncio.to_thread(extract_docx_text,
-                                                                      request.app.state.docling_converter,
+            selectable = await asyncio.to_thread(pdf_is_selectable, path=file_path, min_chars=50)
+            external_logger.info("🔀 routing | job=%s | pdf selectable=%s | pages=%d",
+                                 unique_job_id, selectable, page_number)
+            if selectable:
+                method = 'docling'
+                app.state.docling_queue += 1
+                final_text = await asyncio.wait_for(asyncio.to_thread(extract_docx_text, app.state.docling_converter,
                                                                       file_path), timeout=120)
             else:
+                method = 'paddle'
+                app.state.paddle_queue += 1
                 if page_number == 1:
-                    async with request.app.state.ocr_semaphore:
+                    async with app.state.ocr_semaphore:
                         final_text = await asyncio.wait_for(
-                            asyncio.to_thread(extract_single_page,
-                                              request.app.state.ocr_pipeline,
-                                              file_path),
+                            asyncio.to_thread(extract_single_page,app.state.ocr_pipeline, file_path),
                             timeout=page_number * 30 + 60,
                         )
 
                 else:
-                    async with request.app.state.ocr_semaphore:
+                    async with app.state.ocr_semaphore:
                         final_text = await asyncio.wait_for(
-                            asyncio.to_thread(extract_multi_page,
-                                              request.app.state.ocr_pipeline,
-                                              file_path),
+                            asyncio.to_thread(extract_multi_page,app.state.ocr_pipeline, file_path),
                             timeout=page_number * 30 + 60,
                         )
+                external_logger.info("⏳ gpu queue | job=%s | depth=%d",
+                                     unique_job_id, app.state.ocr_queue_depth)
 
         elif ext == '.jpg' or ext == '.jpeg' or ext == '.png':
-            async with request.app.state.ocr_semaphore:
+            method = 'paddle'
+            app.state.paddle_queue += 1
+            external_logger.info("⏳ gpu queue | job=%s | depth=%d",
+                                 unique_job_id, app.state.ocr_queue_depth)
+            async with app.state.ocr_semaphore:
                 final_text = await asyncio.wait_for(
-                    asyncio.to_thread(extract_single_page,
-                                      request.app.state.ocr_pipeline,
-                                      file_path),
-                    timeout=90,
-                )
+                    asyncio.to_thread(extract_single_page, app.state.ocr_pipeline, file_path), timeout=90)
+        else:
+            method = None
+            raise ValueError(f"No extractor for {ext}")
+
+        external_logger.info("📄 extracted | job=%s | method=%s", unique_job_id, method)
+
     except asyncio.TimeoutError:
-        await update_ocr_data(unique_job_id=unique_job_id, page_count=page_number,
-                              language=None, status='timeout', extracted_text=None,
-                              extracted_text_length=0, duration=0,
-                              finished_at=datetime.now(tz))
+        failed_at = datetime.now(tz)
+        elapsed = Decimal(str(round((failed_at - created_at).total_seconds(), 2)))
+        external_logger.error("⏱️  timeout | job=%s | ext=%s | pages=%d | after=%ss",
+                              unique_job_id, ext, page_number, elapsed)
+        await update_external_ocr_data( unique_job_id=unique_job_id, page_count=page_number, language=None,
+                                        status='timeout', extracted_text=None, extracted_text_length=0,
+                                        duration=elapsed, finished_at=failed_at)
         raise HTTPException(504, "Extraction timed out")
     except Exception as e:
-        logger.exception("extraction failed: %s", unique_job_id)
-        await update_ocr_data(unique_job_id=unique_job_id, page_count=page_number,
-                              language=None, status='failed', extracted_text=None,
-                              extracted_text_length=0, duration=0,
-                              finished_at=datetime.now(tz))
+        failed_at = datetime.now(tz)
+        elapsed = Decimal(str(round((failed_at - created_at).total_seconds(), 2)))
+        external_logger.exception("❌ failed | job=%s | ext=%s | after=%ss | %s",
+                                  unique_job_id, ext, elapsed, e)
+        await update_external_ocr_data(unique_job_id=unique_job_id, page_count=page_number, language=None,
+                                       status='failed', extracted_text=None, extracted_text_length=0,
+                                        duration=elapsed, finished_at=failed_at)
         raise HTTPException(500, f"Extraction failed: {e}")
     finally:
+        if method == 'paddle':
+            app.state.paddle_queue -= 1
+        elif method == 'docling':
+            app.state.docling_queue -= 1
+
+        app.state.ocr_queue_depth -= 1
         temp_file_path.unlink(missing_ok=True)
 
 
     finished_at = datetime.now(tz)
-    duration = (finished_at - created_at).total_seconds()
+    duration = Decimal(str(round((finished_at - created_at).total_seconds(), 2)))
+
+    if not final_text:
+        await update_external_ocr_data(unique_job_id=unique_job_id, page_count=page_number,
+                                       language=None, status='failed', extracted_text=None,
+                                       extracted_text_length=0, duration=duration,
+                                       finished_at=finished_at)
+        raise HTTPException(500, "Extraction produced no text")
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Finalizing OCR result
+    # ------------------------------------------------------------------------------------------------------------------
     language = detect_language(text=final_text)
-    await update_ocr_data(unique_job_id=unique_job_id, page_count=page_number, language=language,
+
+    await update_external_ocr_data(unique_job_id=unique_job_id, page_count=page_number, language=language,
                           status='success', extracted_text=final_text, extracted_text_length=len(final_text),
                           duration=duration, finished_at=finished_at)
+
+    external_logger.info(
+        "✅ success | job=%s | method=%s | lang=%s | pages=%d | chars=%d | %ss (%.2fs/page)",
+        unique_job_id, method, language, page_number, len(final_text),
+        duration, float(duration) / max(page_number, 1)
+    )
 
     return {
         'status': "Success",
@@ -839,6 +994,527 @@ async def ocr_files_api(input_file: UploadFile, request: Request):
             'finished_at': finished_at,
         }
     }
+
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# ocr all internal
+# ----------------------------------------------------------------------------------------------------------------------
+
+@app.get('/api/get_all_internal_ocr_data', tags=["Get All Internal Ocr Data"])
+async def get_all_internal_ocr_data_api(user_session_data = Depends(get_current_user)):
+    user = user_session_data['user']
+    if not user:
+        logger.warning("get_all_internal_ocr_data | Missing user")
+        raise HTTPException(status_code=401, detail="Not Authorized!")
+
+    if not user['is_admin']:
+        raise HTTPException(403, "User does not have admin rights!")
+
+    logger.info("get_all_internal_ocr_data | Fetching all internal ocr data")
+    all_internal_ocr_data = await get_all_internal_ocr_data()
+
+    if not all_internal_ocr_data:
+        logger.warning("get_all_internal_ocr_data | No internal ocr data found in DB")
+        return {"Status": 'Failed', 'user': user, 'Data': all_internal_ocr_data}
+
+    logger.info("get_all_internal_ocr_data | Returned %d records", len(all_internal_ocr_data))
+    return {"Status": 'Success', 'user': user, 'Data': all_internal_ocr_data}
+
+
+class InternalOcrDeleteData(BaseModel):
+    unique_job_id: str
+@app.delete('/api/delete_internal_ocr_data', tags=["Delete Internal Ocr Data"])
+async def delete_internal_ocr_data_api(data: InternalOcrDeleteData, user_session_data = Depends(get_current_user)):
+    user = user_session_data['user']
+    if not user:
+        logger.warning("delete_internal_ocr_data | Missing user")
+        raise HTTPException(status_code=401, detail="Not Authorized!")
+
+    if not user['is_admin']:
+        raise HTTPException(403, "User does not have admin rights!")
+
+    unique_job_id = str(uuid4().hex)
+    user_session = await get_session(session_id=user_session_data['session_id'])
+
+    try:
+        logger.info("delete_internal_ocr_data | unique_job_id=%s", data.unique_job_id)
+        if not data.unique_job_id:
+            logger.warning("delete_internal_ocr_data | Missing Job data!")
+            raise HTTPException(status_code=400, detail="Job Data is required")
+
+        checking_data_existence = await get_single_internal_ocr_data(unique_job_id=data.unique_job_id)
+        if not checking_data_existence:
+            logger.warning("delete_internal_ocr_data | Not found: job_data=%s", data.unique_job_id)
+            raise HTTPException(status_code=404, detail="Such data does not exist!")
+
+        deleted_row = await delete_single_internal_ocr_data(unique_job_id=data.unique_job_id)
+        if not deleted_row:
+            logger.error("delete_internal_ocr_data | DB delete failed for unique_job_id=%s", data.unique_job_id)
+            raise HTTPException(status_code=404, detail="Such data does not exist!")
+
+        await add_action_data(user_id=user['user_id'], unique_job_id=unique_job_id,
+                              session_id=user_session_data["session_id"], ip_address=user_session['ip_address'],
+                              action='Deleted Internal Job Data Request', action_status="success", created_at=datetime.now(tz))
+
+        logger.info("delete_internal_ocr_data | Deleted unique_job_id=%s", data.unique_job_id)
+        return {"Status": 'Success', 'Data': 'Deleted successfully!'}
+    except Exception as e:
+        await add_action_data(user_id=user['user_id'], unique_job_id=unique_job_id,
+                              session_id=user_session_data["session_id"], ip_address=user_session['ip_address'],
+                              action='Deleted Internal Job Data Request', action_status="failed", created_at=datetime.now(tz))
+        logger.error("delete_internal_ocr_data | Failed to delete unique_job_id=%s, error=%s", data.unique_job_id, e)
+        raise HTTPException(status_code=404, detail="Could not delete the internal unique_job_id!")
+
+
+@app.post('/api/internal/ocr_files/', tags=["OCR Internal Files"])
+async def ocr_internal_files_api(input_file: UploadFile, request: Request, user_session_data = Depends(get_current_user)):
+    """
+        External OCR endpoint — called by the complaints service.
+
+            1. User authorization
+            2. Filename exists
+            3. Extension is allowed
+            4. File size
+            5. Read bytes
+            6. Magic bytes (filetype)
+            7. Hash + dedup
+            8. Route: docling (docx / selectable pdf) or PaddleOCR-VL (scan / image)
+            9. Detect language, persist, return text
+        """
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # User Auth
+    # ------------------------------------------------------------------------------------------------------------------
+    user = user_session_data['user']
+    if not user:
+        internal_logger.warning("🚫 rejected | no user in session")
+        raise HTTPException(status_code=401, detail="Not Authorized!")
+
+    username = user['username']
+    session_data = await get_session(session_id=user_session_data['session_id'])
+    ip_address = session_data['ip_address']
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Filename check
+    # ------------------------------------------------------------------------------------------------------------------
+    if not input_file.filename:
+        internal_logger.warning("🚫 rejected | user=%s | ip=%s | missing filename", username, ip_address)
+        raise HTTPException(status_code=400, detail="Filename is missing!")
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Extensions check
+    # ------------------------------------------------------------------------------------------------------------------
+    ALLOWED_EXTENSIONS = {
+        ".docx",
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+    }
+
+    ext = Path(input_file.filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        internal_logger.warning("🚫 rejected | user=%s | ip=%s | bad extension=%s", username, ip_address, ext)
+        raise HTTPException(status_code=400, detail="Unsupported file extension.")
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # File size check
+    # ------------------------------------------------------------------------------------------------------------------
+    MAX_FILE_SIZE = 25 * 1024 * 1024
+    file = input_file.file
+    current = file.tell()
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(current)
+
+    if size > MAX_FILE_SIZE:
+        internal_logger.warning("🚫 rejected | user=%s | ip=%s | too large=%.1f MB", username, ip_address, size / 1024 / 1024)
+        raise HTTPException(413, "File size exceeds 25 MB")
+    if size == 0:
+        internal_logger.warning("🚫 rejected | user=%s | ip=%s | empty file", username, ip_address)
+        raise HTTPException(400, "Empty file")
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Reading bytes
+    # ------------------------------------------------------------------------------------------------------------------
+    file_content = await input_file.read()
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Filetype
+    # ------------------------------------------------------------------------------------------------------------------
+    ALLOWED_TYPES = {
+        ".pdf":  {"application/pdf"},
+        ".png":  {"image/png"},
+        ".jpg":  {"image/jpeg"},
+        ".jpeg": {"image/jpeg"},
+        ".docx": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                  "application/zip"},
+    }
+    kind = filetype.guess(file_content)
+    if kind is None or kind.mime not in ALLOWED_TYPES[ext]:
+        internal_logger.warning("🚫 rejected | user=%s | ip=%s | ext=%s mime=%s mismatch", username, ip_address, ext, kind.mime if kind else None)
+        raise HTTPException(status_code=400,
+                            detail="File extension does not match file content.")
+    # Reset pointer for later OCR processing
+    # await input_file.seek(0)
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # File hash check
+    # ------------------------------------------------------------------------------------------------------------------
+    file_hash = hashlib.sha256(file_content).hexdigest()
+    if ext == '.pdf':
+        reader = PdfReader(io.BytesIO(file_content))
+        page_number = len(reader.pages)
+    else:
+        page_number = 1
+
+    file_data_existence = await check_internal_ocr_file_hash_existence(file_hash)
+    if file_data_existence:
+        internal_logger.info("♻️  cache hit | user=%s | hash=%s | job=%s", username, file_hash[:12], file_data_existence['unique_job_id'])
+        return {
+            'status': "Success",
+            'data': {
+                'filename': file_data_existence['filename'],
+                'file_extension': file_data_existence['file_extension'],
+                'mime_type': file_data_existence['mime_type'],
+                'file_size': file_data_existence['file_size'],
+                'page_count': file_data_existence['page_count'],
+                'language': file_data_existence['language'],
+                'status': file_data_existence['status'],
+                'extracted_text': file_data_existence['extracted_text'],
+                'extracted_text_length': file_data_existence['extracted_text_length'],
+                'created_at': file_data_existence['created_at'],
+                'duration': file_data_existence['duration'],
+                'finished_at': file_data_existence['finished_at']
+            }
+        }
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # New File
+    # ------------------------------------------------------------------------------------------------------------------
+    unique_job_id = str(uuid4().hex)
+    created_at = datetime.now(tz)
+    filename = f'filename_{unique_job_id}'
+    await add_internal_ocr_data(request_ip_address=ip_address, unique_job_id=unique_job_id,
+                       file_hash=file_hash, filename=filename,
+                       file_extension=ext, mime_type=kind.mime,
+                       file_size=size, page_count=page_number,
+                       status='processing', created_at=created_at)
+
+    app.state.ocr_queue_depth += 1
+
+    internal_logger.info("📥 accepted | job=%s | user=%s | ip=%s | ext=%s | %.1f KB | pages=%d | hash=%s",
+                         unique_job_id, username, ip_address, ext, size / 1024, page_number, file_hash[:12])
+
+    temp_dir = Path('temp_files/internal')
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    temp_file_path = temp_dir / f"filename_{unique_job_id}{ext}"
+    file_path = str(temp_file_path)
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Routing OCR tool
+    # ------------------------------------------------------------------------------------------------------------------
+    final_text = None
+    method = None
+    try:
+        temp_file_path.write_bytes(file_content)
+        if ext == '.docx':
+            method = 'docling'
+            app.state.docling_queue += 1
+            final_text = await asyncio.wait_for(asyncio.to_thread(extract_docx_text,
+                                                            app.state.docling_converter,file_path), timeout=120)
+
+        elif ext == '.pdf':
+            selectable = await asyncio.to_thread(pdf_is_selectable, path=file_path, min_chars=50)
+            internal_logger.info("🔀 routing | job=%s | pdf selectable=%s | pages=%d",
+                                 unique_job_id, selectable, page_number)
+            if selectable:
+                method = 'docling'
+                app.state.docling_queue += 1
+                final_text = await asyncio.wait_for(asyncio.to_thread(extract_docx_text,
+                                                                      app.state.docling_converter,
+                                                                      file_path), timeout=120)
+            else:
+                method = 'paddle'
+                app.state.paddle_queue += 1
+                internal_logger.info("⏳ gpu queue | job=%s | depth=%d",
+                                     unique_job_id, app.state.ocr_queue_depth)
+                if page_number == 1:
+                    async with app.state.ocr_semaphore:
+                        final_text = await asyncio.wait_for(
+                            asyncio.to_thread(extract_single_page,app.state.ocr_pipeline, file_path),
+                            timeout=page_number * 30 + 60,
+                        )
+
+                else:
+                    async with app.state.ocr_semaphore:
+                        final_text = await asyncio.wait_for(
+                            asyncio.to_thread(extract_multi_page,
+                                              app.state.ocr_pipeline,
+                                              file_path),
+                            timeout=page_number * 30 + 60,
+                        )
+
+        elif ext == '.jpg' or ext == '.jpeg' or ext == '.png':
+            method = 'paddle'
+            app.state.paddle_queue += 1
+            internal_logger.info("⏳ gpu queue | job=%s | depth=%d",
+                                 unique_job_id, app.state.ocr_queue_depth)
+            async with app.state.ocr_semaphore:
+                final_text = await asyncio.wait_for(
+                    asyncio.to_thread(extract_single_page,app.state.ocr_pipeline, file_path), timeout=90)
+        else:
+            raise ValueError(f"No extractor for {ext}")
+
+        internal_logger.info("📄 extracted | job=%s | method=%s", unique_job_id, method)
+
+    except asyncio.TimeoutError:
+        failed_at = datetime.now(tz)
+        elapsed = Decimal(str(round((failed_at - created_at).total_seconds(), 2)))
+        internal_logger.error("⏱️  timeout | job=%s | user=%s | ext=%s | pages=%d | after=%ss",
+                              unique_job_id, username, ext, page_number, elapsed)
+        await update_internal_ocr_data( unique_job_id=unique_job_id, page_count=page_number, language=None,
+                                        status='timeout', extracted_text=None, extracted_text_length=0,
+                                        duration=elapsed, finished_at=failed_at)
+        raise HTTPException(504, "Extraction timed out")
+    except Exception as e:
+        failed_at = datetime.now(tz)
+        elapsed = Decimal(str(round((failed_at - created_at).total_seconds(), 2)))
+        internal_logger.exception("❌ failed | job=%s | user=%s | ext=%s | after=%ss | %s",
+                                  unique_job_id, username, ext, elapsed, e)
+        await update_internal_ocr_data(unique_job_id=unique_job_id, page_count=page_number, language=None,
+                                       status='failed', extracted_text=None, extracted_text_length=0,
+                                        duration=elapsed, finished_at=failed_at)
+        raise HTTPException(500, f"Extraction failed: {e}")
+    finally:
+        if method == 'paddle':
+            app.state.paddle_queue -= 1
+        elif method == 'docling':
+            app.state.docling_queue -= 1
+
+        app.state.ocr_queue_depth -= 1
+        temp_file_path.unlink(missing_ok=True)
+
+
+    finished_at = datetime.now(tz)
+    duration = Decimal(str(round((finished_at - created_at).total_seconds(), 2)))
+
+    if not final_text:
+        await update_internal_ocr_data(unique_job_id=unique_job_id, page_count=page_number,
+                                       language=None, status='failed', extracted_text=None,
+                                       extracted_text_length=0, duration=duration,
+                                       finished_at=finished_at)
+        raise HTTPException(500, "Extraction produced no text")
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Finalizing OCR result
+    # ------------------------------------------------------------------------------------------------------------------
+    language = detect_language(text=final_text)
+
+    await update_internal_ocr_data(unique_job_id=unique_job_id, page_count=page_number, language=language,
+                          status='success', extracted_text=final_text, extracted_text_length=len(final_text),
+                          duration=duration, finished_at=finished_at)
+
+    internal_logger.info("✅ success | job=%s | user=%s | method=%s | lang=%s | pages=%d | chars=%d | %ss (%.2fs/page)",
+                         unique_job_id, username, method, language, page_number, len(final_text),
+                         duration, float(duration) / max(page_number, 1))
+
+    return {
+        'status': "Success",
+        'data': {
+            'filename': filename,
+            'file_extension': ext,
+            'mime_type': kind.mime,
+            'file_size': size,
+            'page_count': page_number,
+            'language': language,
+            'status': 'success',
+            'extracted_text': final_text,
+            'extracted_text_length': len(final_text),
+            'created_at': created_at,
+            'duration': duration,
+            'finished_at': finished_at,
+        }
+    }
+
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# ocr user internal
+# ----------------------------------------------------------------------------------------------------------------------
+
+@app.get('/api/get_user_internal_ocr_data', tags=["Get All Internal Ocr Data"])
+async def get_user_internal_ocr_data_api(user_session_data = Depends(get_current_user)):
+    user = user_session_data['user']
+    if not user:
+        logger.warning("get_all_internal_ocr_data | Missing user")
+        raise HTTPException(status_code=401, detail="Not Authorized!")
+
+    logger.info("get_user_internal_ocr_data | Fetching user internal ocr data")
+    user_internal_ocr_data = await get_user_internal_ocr_data(user_id=user['user_id'])
+
+    if not user_internal_ocr_data:
+        logger.warning("get_user_internal_ocr_data | No internal ocr data found in DB")
+        return {"Status": 'Failed', 'user': user, 'Data': user_internal_ocr_data}
+
+    logger.info("get_user_internal_ocr_data | Returned %d records", len(user_internal_ocr_data))
+    return {"Status": 'Success', 'user': user, 'Data': user_internal_ocr_data}
+
+
+class InternalOcrDeleteData(BaseModel):
+    unique_job_id: str
+@app.delete('/api/delete_internal_ocr_data', tags=["Delete Internal Ocr Data"])
+async def delete_internal_ocr_data_api(data: InternalOcrDeleteData, user_session_data = Depends(get_current_user)):
+    user = user_session_data['user']
+    if not user:
+        logger.warning("delete_internal_ocr_data | Missing user")
+        raise HTTPException(status_code=401, detail="Not Authorized!")
+
+    unique_job_id = str(uuid4().hex)
+    user_session = await get_session(session_id=user_session_data['session_id'])
+
+    try:
+        logger.info("delete_internal_ocr_data | unique_job_id=%s", data.unique_job_id)
+        if not data.unique_job_id:
+            logger.warning("delete_internal_ocr_data | Missing Job data!")
+            raise HTTPException(status_code=400, detail="Job Data is required")
+
+        checking_data_existence = await get_single_internal_ocr_data(unique_job_id=data.unique_job_id)
+        if not checking_data_existence:
+            logger.warning("delete_internal_ocr_data | Not found: job_data=%s", data.unique_job_id)
+            raise HTTPException(status_code=404, detail="Such data does not exist!")
+
+        deleted_row = await delete_single_internal_ocr_data(unique_job_id=data.unique_job_id)
+        if not deleted_row:
+            logger.error("delete_internal_ocr_data | DB delete failed for unique_job_id=%s", data.unique_job_id)
+            raise HTTPException(status_code=404, detail="Such data does not exist!")
+
+        await add_action_data(user_id=user['user_id'], unique_job_id=unique_job_id,
+                              session_id=user_session_data["session_id"], ip_address=user_session['ip_address'],
+                              action='Deleted Internal Job Data Request', action_status="success", created_at=datetime.now(tz))
+
+        logger.info("delete_internal_ocr_data | Deleted unique_job_id=%s", data.unique_job_id)
+        return {"Status": 'Success', 'Data': 'Deleted successfully!'}
+    except Exception as e:
+        await add_action_data(user_id=user['user_id'], unique_job_id=unique_job_id,
+                              session_id=user_session_data["session_id"], ip_address=user_session['ip_address'],
+                              action='Deleted Internal Job Data Request', action_status="failed", created_at=datetime.now(tz))
+        logger.error("delete_internal_ocr_data | Failed to delete unique_job_id=%s, error=%s", data.unique_job_id, e)
+        raise HTTPException(status_code=404, detail="Could not delete the internal unique_job_id!")
+
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# ocr status check
+# ----------------------------------------------------------------------------------------------------------------------
+
+@app.get('/api/ocr_status_check', tags=["OCR Status Check"])
+async def get_ocr_status_check_api(user_session_data = Depends(get_current_user)):
+    """
+    Live OCR engine state. Reads in-memory counters only — no DB, no GPU
+    work — so the frontend can poll this every second.
+
+    Statuses:
+        Not loaded  — the engine failed to initialize at startup
+        Processing  — currently extracting
+        Free        — idle
+        Error       — counter went negative, accounting has drifted
+    """
+    user = user_session_data['user']
+    if not user:
+        logger.warning("ocr_status_check | Missing user")
+        raise HTTPException(status_code=401, detail="Not Authorized!")
+
+    if not user['is_admin']:
+        logger.warning("ocr_status_check | user=%s | not admin", user['username'])
+        raise HTTPException(403, "User does not have admin rights!")
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # State must exist — if startup did not complete, say so plainly
+    # ------------------------------------------------------------------------------------------------------------------
+    required = ('ocr_queue_depth', 'docling_queue', 'paddle_queue', 'ocr_semaphore')
+    missing = [attr for attr in required if not hasattr(app.state, attr)]
+    if missing:
+        logger.error("ocr_status_check | app.state missing: %s", missing)
+        raise HTTPException(status_code=503, detail="OCR service is not ready!")
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Are the engines actually loaded?
+    # ------------------------------------------------------------------------------------------------------------------
+    paddle_loaded = getattr(app.state, 'ocr_pipeline', None) is not None
+    docling_loaded = getattr(app.state, 'docling_converter', None) is not None
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Counters
+    # ------------------------------------------------------------------------------------------------------------------
+    total_number_of_processes = app.state.ocr_queue_depth
+    docling_processes = app.state.docling_queue
+    paddle_processes = app.state.paddle_queue
+
+    # Semaphore tells us whether the GPU is occupied right now, as opposed
+    # to a job that is accepted but still queued behind another.
+    paddle_busy = app.state.ocr_semaphore.locked()
+    paddle_waiting = max(paddle_processes - (1 if paddle_busy else 0), 0)
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Statuses
+    # ------------------------------------------------------------------------------------------------------------------
+    if not paddle_loaded:
+        paddle_status = 'Not loaded'
+    elif paddle_processes < 0:
+        paddle_status = 'Error'
+        logger.error("ocr_status_check | paddle counter negative: %d", paddle_processes)
+    elif paddle_busy or paddle_processes > 0:
+        paddle_status = 'Processing'
+    else:
+        paddle_status = 'Free'
+
+    if not docling_loaded:
+        docling_status = 'Not loaded'
+    elif docling_processes < 0:
+        docling_status = 'Error'
+        logger.error("ocr_status_check | docling counter negative: %d", docling_processes)
+    elif docling_processes > 0:
+        docling_status = 'Processing'
+    else:
+        docling_status = 'Free'
+
+    if total_number_of_processes < 0:
+        logger.error("ocr_status_check | total counter negative: %d",
+                     total_number_of_processes)
+
+    return {
+        'Status': 'Success',
+        'data': {
+            'total_number_of_processes': total_number_of_processes,
+
+            'docling': {
+                'loaded': docling_loaded,
+                'status': docling_status,
+                'processes': docling_processes,
+            },
+
+            'paddle': {
+                'loaded': paddle_loaded,
+                'status': paddle_status,
+                'processes': paddle_processes,
+                'on_gpu': paddle_busy,
+                'waiting': paddle_waiting,
+            },
+        }
+    }
+
+
+
 
 
 

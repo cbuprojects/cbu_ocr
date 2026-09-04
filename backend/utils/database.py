@@ -38,32 +38,6 @@ async def init_db_pool() -> None:
     pool = await asyncpg.create_pool(**DB_CONFIG, min_size=5, max_size=20)
 
     async with pool.acquire() as conn:
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS ocr_requests (
-                id                      SERIAL PRIMARY KEY,
-                request_ip_address      INET,
-                unique_job_id           TEXT NOT NULL UNIQUE,
-                                
-                file_hash               TEXT NOT NULL,
-                filename                TEXT NOT NULL,
-                file_extension          TEXT NOT NULL,
-                mime_type               TEXT NOT NULL,
-                
-                file_size               BIGINT,
-                page_count              INTEGER,
-                language                TEXT,
-                
-                status                  TEXT NOT NULL CHECK (status IN ('processing', 'success', 'failed', 'timeout')),
-                
-                extracted_text          TEXT,
-                extracted_text_length   INTEGER,
-                
-                created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                duration                NUMERIC(10,2),
-                finished_at             TIMESTAMPTZ
-                
-            )
-        """)
 
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -109,6 +83,58 @@ async def init_db_pool() -> None:
 
                 FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
                 FOREIGN KEY (session_id) REFERENCES user_sessions(session_id) ON DELETE CASCADE
+            )
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS ocr_external_requests (
+                id                      SERIAL PRIMARY KEY,
+                request_ip_address      INET,
+                unique_job_id           TEXT NOT NULL UNIQUE,
+
+                file_hash               TEXT NOT NULL,
+                filename                TEXT NOT NULL,
+                file_extension          TEXT NOT NULL,
+                mime_type               TEXT NOT NULL,
+
+                file_size               BIGINT,
+                page_count              INTEGER,
+                language                TEXT,
+
+                status                  TEXT NOT NULL CHECK (status IN ('processing', 'success', 'failed', 'timeout')),
+
+                extracted_text          TEXT,
+                extracted_text_length   INTEGER,
+
+                created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                duration                DOUBLE PRECISION,
+                finished_at             TIMESTAMPTZ
+            )
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS ocr_internal_requests (
+                id                      SERIAL PRIMARY KEY,
+                request_ip_address      INET,
+                unique_job_id           TEXT NOT NULL UNIQUE,
+
+                file_hash               TEXT NOT NULL,
+                filename                TEXT NOT NULL,
+                file_extension          TEXT NOT NULL,
+                mime_type               TEXT NOT NULL,
+
+                file_size               BIGINT,
+                page_count              INTEGER,
+                language                TEXT,
+
+                status                  TEXT NOT NULL CHECK (status IN ('processing', 'success', 'failed', 'timeout')),
+
+                extracted_text          TEXT,
+                extracted_text_length   INTEGER,
+
+                created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                duration                DOUBLE PRECISION,
+                finished_at             TIMESTAMPTZ
             )
         """)
 
@@ -480,10 +506,10 @@ async def edit_action_status(unique_job_id: str, status: str):
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-# ocr
+# ocr all external
 # ----------------------------------------------------------------------------------------------------------------------
 
-async def get_all_ocr_data():
+async def get_all_external_ocr_data():
 
     """Fetch all ocr data."""
     async with pool.acquire() as conn:
@@ -505,14 +531,14 @@ async def get_all_ocr_data():
                     created_at,
                     duration,
                     finished_at
-                FROM ocr_requests
+                FROM ocr_external_requests
                 ORDER BY created_at DESC           
             """
         )
     return [dict(row) for row in rows]
 
 
-async def get_single_ocr_data(unique_job_id: str):
+async def get_single_external_ocr_data(unique_job_id: str):
     """Fetch single ocr data."""
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -521,7 +547,7 @@ async def get_single_ocr_data(unique_job_id: str):
               file_hash, filename, file_extension, mime_type, file_size,
               page_count, language, status, extracted_text, extracted_text_length,
               created_at, duration, finished_at
-            FROM ocr_requests
+            FROM ocr_external_requests
             WHERE unique_job_id = $1
             """,
             unique_job_id,
@@ -533,23 +559,23 @@ async def get_single_ocr_data(unique_job_id: str):
     return dict(row)
 
 
-async def delete_single_ocr_data(unique_job_id: str):
+async def delete_single_external_ocr_data(unique_job_id: str):
     """Delete single ocr data."""
     async with pool.acquire() as conn:
         result = await conn.execute(
-            "DELETE FROM ocr_requests WHERE unique_job_id = $1",
+            "DELETE FROM ocr_external_requests WHERE unique_job_id = $1",
             unique_job_id,
         )
     affected = int(result.split()[-1])
     return affected if affected > 0 else None
 
 
-async def add_ocr_data(request_ip_address, unique_job_id, file_hash,
+async def add_external_ocr_data(request_ip_address, unique_job_id, file_hash,
                             filename, file_extension, mime_type, file_size, page_count, status, created_at):
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO ocr_requests (request_ip_address, unique_job_id, file_hash,
+            INSERT INTO ocr_external_requests (request_ip_address, unique_job_id, file_hash,
              filename, file_extension, mime_type, file_size, page_count, status, created_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             """,
@@ -559,22 +585,22 @@ async def add_ocr_data(request_ip_address, unique_job_id, file_hash,
     return True
 
 
-async def update_ocr_status(unique_job_id: str, status: str):
+async def update_external_ocr_status(unique_job_id: str, status: str):
     """Edit user ocr status."""
     async with pool.acquire() as conn:
         result = await conn.execute(
-            "UPDATE ocr_requests SET status = $2 WHERE unique_job_id = $1",
+            "UPDATE ocr_external_requests SET status = $2 WHERE unique_job_id = $1",
             unique_job_id, status
         )
     affected = int(result.split()[-1])  # asyncpg returns e.g. "UPDATE 1"
     return True if affected > 0 else False
 
 
-async def update_ocr_data(unique_job_id: str, page_count, language, status, extracted_text, extracted_text_length, duration, finished_at):
+async def update_external_ocr_data(unique_job_id: str, page_count, language, status, extracted_text, extracted_text_length, duration, finished_at):
     """Update user ocr data."""
     async with pool.acquire() as conn:
         result = await conn.execute(
-            """UPDATE ocr_requests SET page_count=$2, language=$3, status=$4, extracted_text=$5,
+            """UPDATE ocr_external_requests SET page_count=$2, language=$3, status=$4, extracted_text=$5,
                extracted_text_length=$6, duration=$7, finished_at=$8 WHERE unique_job_id=$1
             """,
             unique_job_id, page_count, language, status, extracted_text, extracted_text_length, duration, finished_at
@@ -583,7 +609,7 @@ async def update_ocr_data(unique_job_id: str, page_count, language, status, extr
     return True if affected > 0 else False
 
 
-async def check_ocr_file_hash_existence(file_hash: str):
+async def check_external_ocr_file_hash_existence(file_hash: str):
     """Fetch single ocr hash data."""
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -592,7 +618,7 @@ async def check_ocr_file_hash_existence(file_hash: str):
               file_hash, filename, file_extension, mime_type, file_size,
               page_count, language, status, extracted_text, extracted_text_length,
               created_at, duration, finished_at
-            FROM ocr_requests
+            FROM ocr_external_requests
             WHERE file_hash = $1 AND status = 'success'
             """,
             file_hash,
@@ -602,3 +628,187 @@ async def check_ocr_file_hash_existence(file_hash: str):
         return None
 
     return dict(row)
+
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# ocr all internal
+# ----------------------------------------------------------------------------------------------------------------------
+
+async def get_all_internal_ocr_data():
+
+    """Fetch all ocr data."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+                SELECT
+                    ic.request_ip_address,
+                    ic.unique_job_id,
+                    ic.file_hash,
+                    ic.filename,
+                    ic.file_extension,
+                    ic.ime_type,
+                    ic.file_size,
+                    ic.page_count,
+                    ic.language,
+                    ic.status,
+                    ic.extracted_text, 
+                    ic.extracted_text_length,
+                    ic.created_at,
+                    ic.duration,
+                    ic.finished_at,
+                    
+                    ua.user_id,
+                    usr.username,
+                    usr.first_name,
+                    usr.last_name
+                    
+                FROM ocr_internal_requests ic
+                LEFT JOIN user_actions ua
+                    ON ua.unique_job_id = ic.unique_job_id
+                LEFT JOIN users usr
+                    ON usr.user_id = ua.user_id
+                    
+                ORDER BY ic.created_at DESC;           
+            """
+        )
+    return [dict(row) for row in rows]
+
+
+async def get_single_internal_ocr_data(unique_job_id: str):
+    """Fetch single ocr data."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT request_ip_address, unique_job_id,
+              file_hash, filename, file_extension, mime_type, file_size,
+              page_count, language, status, extracted_text, extracted_text_length,
+              created_at, duration, finished_at
+            FROM ocr_internal_requests
+            WHERE unique_job_id = $1
+            """,
+            unique_job_id,
+        )
+
+    if row is None:
+        return None
+
+    return dict(row)
+
+
+async def delete_single_internal_ocr_data(unique_job_id: str):
+    """Delete single ocr data."""
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM ocr_internal_requests WHERE unique_job_id = $1",
+            unique_job_id,
+        )
+    affected = int(result.split()[-1])
+    return affected if affected > 0 else None
+
+
+async def add_internal_ocr_data(request_ip_address, unique_job_id, file_hash,
+                            filename, file_extension, mime_type, file_size, page_count, status, created_at):
+    """Add internal ocr data."""
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO ocr_internal_requests (request_ip_address, unique_job_id, file_hash,
+             filename, file_extension, mime_type, file_size, page_count, status, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            """,
+            request_ip_address, unique_job_id, file_hash,
+            filename, file_extension, mime_type, file_size, page_count, status, created_at
+        )
+    return True
+
+
+async def update_internal_ocr_status(unique_job_id: str, status: str):
+    """Edit internal ocr status."""
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "UPDATE ocr_internal_requests SET status = $2 WHERE unique_job_id = $1",
+            unique_job_id, status
+        )
+    affected = int(result.split()[-1])  # asyncpg returns e.g. "UPDATE 1"
+    return True if affected > 0 else False
+
+
+async def update_internal_ocr_data(unique_job_id: str, page_count, language, status, extracted_text, extracted_text_length, duration, finished_at):
+    """Update internal ocr data."""
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            """UPDATE ocr_internal_requests SET page_count=$2, language=$3, status=$4, extracted_text=$5,
+               extracted_text_length=$6, duration=$7, finished_at=$8 WHERE unique_job_id=$1
+            """,
+            unique_job_id, page_count, language, status, extracted_text, extracted_text_length, duration, finished_at
+        )
+    affected = int(result.split()[-1])  # asyncpg returns e.g. "UPDATE 1"
+    return True if affected > 0 else False
+
+
+async def check_internal_ocr_file_hash_existence(file_hash: str):
+    """Fetch single ocr hash data."""
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT request_ip_address, unique_job_id,
+              file_hash, filename, file_extension, mime_type, file_size,
+              page_count, language, status, extracted_text, extracted_text_length,
+              created_at, duration, finished_at
+            FROM ocr_internal_requests
+            WHERE file_hash = $1 AND status = 'success'
+            """,
+            file_hash,
+        )
+
+    if row is None:
+        return None
+
+    return dict(row)
+
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# ocr user internal
+# ----------------------------------------------------------------------------------------------------------------------
+
+async def get_user_internal_ocr_data(user_id: str):
+    """Fetch user ocr data."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+                SELECT
+                    ic.request_ip_address,
+                    ic.unique_job_id,
+                    ic.file_hash,
+                    ic.filename,
+                    ic.file_extension,
+                    ic.ime_type,
+                    ic.file_size,
+                    ic.page_count,
+                    ic.language,
+                    ic.status,
+                    ic.extracted_text, 
+                    ic.extracted_text_length,
+                    ic.created_at,
+                    ic.duration,
+                    ic.finished_at,
+
+                    ua.user_id,
+                    usr.username,
+                    usr.first_name,
+                    usr.last_name
+
+                FROM ocr_internal_requests ic
+                LEFT JOIN user_actions ua
+                    ON ua.unique_job_id = ic.unique_job_id
+                LEFT JOIN users usr
+                    ON usr.user_id = ua.user_id
+                
+                WHERE ua.user_id = $1
+                
+                ORDER BY ic.created_at DESC;           
+            """, user_id
+        )
+    return [dict(row) for row in rows]
