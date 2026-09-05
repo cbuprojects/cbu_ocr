@@ -14,7 +14,6 @@ env/
 *.sqlite3
 *.log
 
-logs/
 data/output_data/
 
 # ── Node / Frontend ───────────────────────────────
