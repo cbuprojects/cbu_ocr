@@ -101,7 +101,7 @@ async def init_db_pool() -> None:
                 page_count              INTEGER,
                 language                TEXT,
 
-                status                  TEXT NOT NULL CHECK (status IN ('processing', 'success', 'failed', 'timeout')),
+                status                  TEXT NOT NULL CHECK (status IN ('processing', 'success', 'failed', 'timeout', 'interrupted')),
 
                 extracted_text          TEXT,
                 extracted_text_length   INTEGER,
@@ -127,7 +127,7 @@ async def init_db_pool() -> None:
                 page_count              INTEGER,
                 language                TEXT,
 
-                status                  TEXT NOT NULL CHECK (status IN ('processing', 'success', 'failed', 'timeout')),
+                status                  TEXT NOT NULL CHECK (status IN ('processing', 'success', 'failed', 'timeout', 'interrupted')),
 
                 extracted_text          TEXT,
                 extracted_text_length   INTEGER,
@@ -812,3 +812,50 @@ async def get_user_internal_ocr_data(user_id: str):
             """, user_id
         )
     return [dict(row) for row in rows]
+
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# external db table check
+# ----------------------------------------------------------------------------------------------------------------------
+
+async def recover_interrupted_external_ocr():
+    """
+        Marking unfinished external OCR jobs from a previous process as interrupted.
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            UPDATE ocr_external_requests
+            SET status = 'interrupted'
+            WHERE status = 'processing'
+              AND extracted_text IS NULL AND extracted_text_length IS NULL
+            RETURNING unique_job_id
+            """
+        )
+
+    return [row["unique_job_id"] for row in rows]
+
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# internal db table check
+# ----------------------------------------------------------------------------------------------------------------------
+
+async def recover_interrupted_internal_ocr():
+    """
+        Mark unfinished internal OCR jobs from a previous process as interrupted.
+    """
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            UPDATE ocr_internal_requests
+            SET status = 'interrupted'
+            WHERE status = 'processing'
+              AND extracted_text IS NULL AND extracted_text_length IS NULL
+            RETURNING unique_job_id
+            """
+        )
+
+    return [row["unique_job_id"] for row in rows]
+

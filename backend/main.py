@@ -28,7 +28,7 @@ from fastapi import FastAPI, UploadFile, HTTPException, Form, BackgroundTasks, R
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
-from utils.logging_setup import setup_logging, get_logger
+from utils.logging import setup_logging, get_logger
 from utils.database import (init_db_pool, close_db_pool,
                             create_superuser, create_user_session, get_session, logout_user_session, expire_user_session,
                             edit_user_language, add_new_user, get_user, get_user_id, get_all_users, edit_user_details,
@@ -41,11 +41,15 @@ from utils.database import (init_db_pool, close_db_pool,
                             get_all_internal_ocr_data, get_single_internal_ocr_data, delete_single_internal_ocr_data,
                             add_internal_ocr_data, update_internal_ocr_data, update_internal_ocr_status,
                             check_internal_ocr_file_hash_existence,
-                            get_user_internal_ocr_data)
+                            get_user_internal_ocr_data,
+                            recover_interrupted_external_ocr, recover_interrupted_internal_ocr)
 from utils.ocr_set import (initialize_paddle_ocr, initialize_docling, pdf_is_selectable,
                            extract_docx_text, extract_single_page, extract_multi_page)
 from utils.language import detect_language
+from utils.services import reset_temp_folder
 
+
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Logging configuration
@@ -63,7 +67,6 @@ internal_logger = get_logger("cbu_api.internal", "internal.log")
 
 app = FastAPI(title='Cbu OCR APIs', docs_url='/', redoc_url=None)
 
-load_dotenv()
 
 # origins = [
 #    os.getenv('LOCAL_ORIGIN_1'),
@@ -92,6 +95,7 @@ app.add_middleware(
 tz = ZoneInfo("Asia/Tashkent")
 
 
+
 # ---------------------------------------------------------------------------
 # Request timing middleware
 # ---------------------------------------------------------------------------
@@ -116,34 +120,148 @@ async def log_requests(request: Request, call_next):
 
 @app.on_event("startup")
 async def startup_event():
+    # ------------------------------------------------------------------------------------------------------------------
+    # Initializing DB
+    # ------------------------------------------------------------------------------------------------------------------
     logger.info("🚀 Starting CBU API…")
     await init_db_pool()
     logger.info("✅ DB pool initialized!")
 
-    # await create_admin_user()
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Removing Temp folders
+    # ------------------------------------------------------------------------------------------------------------------
+    logger.info("🗂️ Resetting Temp folder")
+    removed_files = reset_temp_folder()
+    if removed_files:
+        logger.info(f"📂 Removed {len(removed_files)} number of files, files: {removed_files} ✅")
+    else:
+        logger.info('📂 Nothing to delete from Temp folder, ready to go ✅')
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Updating External table Interrupted jobs
+    # ------------------------------------------------------------------------------------------------------------------
+    logger.info("🔄Updating <<Processing>> status of <<🗂️External 🗂️>> Not Finished jobs in the db 🔄")
+    external_interrupted_jobs = await recover_interrupted_external_ocr()
+    if external_interrupted_jobs:
+        logger.info(f"🔄Updated status of these <<🗂️External 🗂️>> jobs to <<‼️Interrupted ‼️>>: {external_interrupted_jobs} 🔄")
+    else:
+        logger.info(f"✅Nothing to update in <<🗂️External 🗂️>> db table, all good ✅")
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Updating Internal table Interrupted jobs
+    # ------------------------------------------------------------------------------------------------------------------
+    logger.info("🔄Updating <<Processing>> status of <<🗂Internal 🗂️>> Not Finished jobs in the db 🔄")
+    internal_interrupted_jobs = await recover_interrupted_internal_ocr()
+    if internal_interrupted_jobs:
+        logger.info(f"🔄Updated status of these <<🗂Internal 🗂️>> jobs to <<‼️Interrupted ‼️>>: {internal_interrupted_jobs} 🔄")
+    else:
+        logger.info(f"✅Nothing to update in <<🗂Internal 🗂️>> db table, all good ✅")
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Updating OCR queue
+    # ------------------------------------------------------------------------------------------------------------------
     app.state.ocr_queue_depth = 0
     logger.info('OCR has no queue ✅')
 
-    logger.info("OCR is being initialized...🔎")
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Initializing Paddle OCR
+    # ------------------------------------------------------------------------------------------------------------------
+    logger.info("Paddle OCR is being initialized...🔎")
     app.state.ocr_pipeline = initialize_paddle_ocr()
     app.state.ocr_semaphore = asyncio.Semaphore(1)
     app.state.paddle_queue = 0
-    logger.info("✅ OCR initialized!")
+    logger.info("✅ Paddle OCR initialized!")
 
-    logger.info("Docling is being initialized...📄")
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Initializing Paddle OCR
+    # ------------------------------------------------------------------------------------------------------------------
+    logger.info("Docling OCR is being initialized...🔎")
     app.state.docling_converter = initialize_docling()
     app.state.docling_queue = 0
-    logger.info("✅ Startup complete!")
+    logger.info("✅ Docling OCR initialized!")
 
 
+    # ------------------------------------------------------------------------------------------------------------------
+    # Creating Admin User
+    # ------------------------------------------------------------------------------------------------------------------
+    # admin_user = await create_admin_user()
+    # if admin_user:
+    #     logger.info("✅✅✅ 👤 Admin user created successfully! ✅✅✅")
+    # else:
+    #     logger.info("❌❌❌ 👤 Failed to create Admin user! ❌❌❌")
+
+
+    logger.info("✅ Startup complete! ✅")
 
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    logger.info("🛑 Shutdown signal received — closing DB pool…")
+    # ------------------------------------------------------------------------------------------------------------------
+    # Shutdown started
+    # ------------------------------------------------------------------------------------------------------------------
+    logger.info("🛑 Shutdown signal received — shutting down CBU API... 🛑")
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Stopping OCR processing
+    # ------------------------------------------------------------------------------------------------------------------
+    logger.info("🛑 Stopping OCR processing...")
+
+    # Release Paddle OCR
+    if getattr(app.state, "ocr_pipeline", None) is not None:
+        app.state.ocr_pipeline = None
+        logger.info("🛑 Paddle OCR released")
+
+    # Release Docling OCR
+    if getattr(app.state, "docling_converter", None) is not None:
+        app.state.docling_converter = None
+        logger.info("🛑 Docling OCR released")
+
+    # Reset OCR state
+    app.state.ocr_semaphore = None
+    app.state.paddle_queue = 0
+    app.state.docling_queue = 0
+    app.state.ocr_queue_depth = 0
+
+    logger.info("✅🛑 OCR processing stopped 🛑✅")
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Removing Temp folders
+    # ------------------------------------------------------------------------------------------------------------------
+    logger.info("🗂️ Removing Temp files...")
+
+    removed_files = reset_temp_folder()
+
+    if removed_files:
+        logger.info(
+            f"📂 Removed {len(removed_files)} number of files, "
+            f"files: {removed_files} ✅"
+        )
+    else:
+        logger.info("📂 Nothing to delete from Temp folder ✅")
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Closing DB
+    # ------------------------------------------------------------------------------------------------------------------
+    logger.info("🗄️ Closing DB pool...")
     await close_db_pool()
-    logger.info("✅ Shutdown complete: DB pool closed")
+    logger.info("✅ DB pool closed")
+
+
+    # ------------------------------------------------------------------------------------------------------------------
+    # Shutdown complete
+    # ------------------------------------------------------------------------------------------------------------------
+    logger.info("✅🛑 Shutdown complete! 🛑✅")
+
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -162,6 +280,7 @@ ias = os.getenv("IAC", "false").lower() == "true"
 async def create_admin_user():
     token = secrets.token_hex(64)
     await create_superuser(token, ad, fs, ls, dp, l, hs_pd(token), ias, iad, datetime.now(tz))
+    return True
 
 def hs_pd(token: str) -> str:
     hmac_result = hmac.new(token.encode(), psd.encode(), hashlib.sha256).hexdigest()
