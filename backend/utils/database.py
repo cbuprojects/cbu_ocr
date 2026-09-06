@@ -784,7 +784,7 @@ async def get_user_internal_ocr_data(user_id: str):
                     ic.file_hash,
                     ic.filename,
                     ic.file_extension,
-                    ic.ime_type,
+                    ic.mime_type,
                     ic.file_size,
                     ic.page_count,
                     ic.language,

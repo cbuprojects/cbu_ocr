@@ -68,14 +68,14 @@ internal_logger = get_logger("cbu_api.internal", "internal.log")
 app = FastAPI(title='Cbu OCR APIs', docs_url='/', redoc_url=None)
 
 
-# origins = [
-#    os.getenv('LOCAL_ORIGIN_1'),
-#    os.getenv('LOCAL_ORIGIN_2')
-# ]
-
 origins = [
-    os.getenv('PROD_ORIGIN')
+   os.getenv('LOCAL_ORIGIN_1'),
+   os.getenv('LOCAL_ORIGIN_2')
 ]
+
+# origins = [
+#     os.getenv('PROD_ORIGIN')
+# ]
 
 allowed_ips = [os.getenv("ALLOWED_IP")]
 
@@ -171,20 +171,20 @@ async def startup_event():
     # ------------------------------------------------------------------------------------------------------------------
     # Initializing Paddle OCR
     # ------------------------------------------------------------------------------------------------------------------
-    logger.info("Paddle OCR is being initialized...🔎")
-    app.state.ocr_pipeline = initialize_paddle_ocr()
-    app.state.ocr_semaphore = asyncio.Semaphore(1)
-    app.state.paddle_queue = 0
-    logger.info("✅ Paddle OCR initialized!")
+    logger.info("Docling OCR is being initialized...🔎")
+    app.state.docling_converter = initialize_docling()
+    app.state.docling_queue = 0
+    logger.info("✅ Docling OCR initialized!")
 
 
     # ------------------------------------------------------------------------------------------------------------------
     # Initializing Paddle OCR
     # ------------------------------------------------------------------------------------------------------------------
-    logger.info("Docling OCR is being initialized...🔎")
-    app.state.docling_converter = initialize_docling()
-    app.state.docling_queue = 0
-    logger.info("✅ Docling OCR initialized!")
+    logger.info("Paddle OCR is being initialized...🔎")
+    app.state.ocr_pipeline = initialize_paddle_ocr()
+    app.state.ocr_semaphore = asyncio.Semaphore(1)
+    app.state.paddle_queue = 0
+    logger.info("✅ Paddle OCR initialized!")
 
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -295,7 +295,6 @@ def hs_pd(token: str) -> str:
 class LoginRequest(BaseModel):
     username: str
     password: str
-
 @app.post("/api/login")
 async def login_api(request: Request, data: LoginRequest):
     user = await get_user(data.username)
@@ -306,8 +305,8 @@ async def login_api(request: Request, data: LoginRequest):
         raise HTTPException(401, "Invalid credentials")
 
     session_data = create_session_token()
-    # ip_address = request.client.host
-    ip_address = request.headers.get("x-real-ip")
+    ip_address = request.client.host
+    # ip_address = request.headers.get("x-real-ip")
     if not ip_address:
         raise HTTPException(401, "Not valid user, not authenticated!")
 
@@ -343,13 +342,13 @@ async def get_current_user(request: Request):
 
     session_id = authorization.split(" ", 1)[1]
 
-    # ip_address = request.client.host
-    # if not ip_address:
-    #     raise HTTPException(401, "Not valid user, not authenticated!")
-
-    ip_address = request.headers.get("x-real-ip")
+    ip_address = request.client.host
     if not ip_address:
         raise HTTPException(401, "Not valid user, not authenticated!")
+
+    # ip_address = request.headers.get("x-real-ip")
+    # if not ip_address:
+    #     raise HTTPException(401, "Not valid user, not authenticated!")
 
     hashed_session_id = hashlib.sha256(session_id.encode()).hexdigest()
     session = await get_session(hashed_session_id)
@@ -1187,7 +1186,7 @@ async def delete_internal_ocr_data_api(data: InternalOcrDeleteData, user_session
 
 
 @app.post('/api/internal/ocr_files/', tags=["OCR Internal Files"])
-async def ocr_internal_files_api(input_file: UploadFile, request: Request, user_session_data = Depends(get_current_user)):
+async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Depends(get_current_user)):
     """
         External OCR endpoint — called by the complaints service.
 
