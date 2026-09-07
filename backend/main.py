@@ -190,11 +190,11 @@ async def startup_event():
     # ------------------------------------------------------------------------------------------------------------------
     # Creating Admin User
     # ------------------------------------------------------------------------------------------------------------------
-    # admin_user = await create_admin_user()
-    # if admin_user:
-    #     logger.info("✅✅✅ 👤 Admin user created successfully! ✅✅✅")
-    # else:
-    #     logger.info("❌❌❌ 👤 Failed to create Admin user! ❌❌❌")
+    admin_user = await create_admin_user()
+    if admin_user:
+        logger.info("✅✅✅ 👤 Admin user created successfully! ✅✅✅")
+    else:
+        logger.info("❌❌❌ 👤 Failed to create Admin user! ❌❌❌")
 
 
     logger.info("✅ Startup complete! ✅")
