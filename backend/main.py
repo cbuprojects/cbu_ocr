@@ -1488,7 +1488,7 @@ async def get_all_user_internal_ocr_data_api(user_session_data = Depends(get_cur
     return {"Status": 'Success', 'user': user, 'Data': user_all_internal_ocr_data}
 
 
-# @app.get('/api/get_single_user_internal_ocr_data', tags=["Get All Internal Ocr Data"])
+# @app.get('/api/get_single_user_internal_ocr_data', tags=["Get Single Internal Ocr Data"])
 # async def get_single_user_internal_ocr_data_api(user_session_data = Depends(get_current_user)):
 #     user = user_session_data['user']
 #     if not user:
