@@ -1488,22 +1488,13 @@ async def get_all_user_internal_ocr_data_api(user_session_data = Depends(get_cur
     return {"Status": 'Success', 'user': user, 'Data': user_all_internal_ocr_data}
 
 
-# @app.get('/api/get_single_user_internal_ocr_data', tags=["Get Single Internal Ocr Data"])
-# async def get_single_user_internal_ocr_data_api(user_session_data = Depends(get_current_user)):
-#     user = user_session_data['user']
-#     if not user:
-#         logger.warning("get_single_user_internal_ocr_data | Missing user")
-#         raise HTTPException(status_code=401, detail="Not Authorized!")
-#
-#     logger.info("get_single_user_internal_ocr_data | Fetching user single internal ocr data")
-#     user_internal_ocr_data = await get_single_user_internal_ocr_data(user_id=user['user_id'])
-#
-#     if not user_internal_ocr_data:
-#         logger.warning("get_single_user_internal_ocr_data | No internal ocr data found in DB")
-#         return {"Status": 'Failed', 'user': user, 'Data': user_internal_ocr_data}
-#
-#     logger.info("get_single_user_internal_ocr_data | Returned %d records", len(user_internal_ocr_data))
-#     return {"Status": 'Success', 'user': user, 'Data': user_internal_ocr_data}
+@app.get('/api/get_single_user_internal_ocr_data', tags=["Get Single Internal Ocr Data"])
+async def get_single_user_internal_ocr_data_api(user_session = Depends(get_current_user)):
+    logger.info("get_single_user_internal_ocr_data | username=%s", user_session['user']['username'])
+    if not user_session['user']:
+        logger.warning("get_single_user_internal_ocr_data | Missing user")
+        raise HTTPException(status_code=404, detail="Could not get single user internal ocr status!")
+    return {'status': 'Success', 'user': user_session['user']}
 
 
 class InternalOcrDeleteData(BaseModel):
