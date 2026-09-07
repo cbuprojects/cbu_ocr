@@ -773,7 +773,7 @@ async def check_internal_ocr_file_hash_existence(file_hash: str):
 # ocr user internal
 # ----------------------------------------------------------------------------------------------------------------------
 
-async def get_user_internal_ocr_data(user_id: str):
+async def get_all_user_internal_ocr_data(user_id: str):
     """Fetch user ocr data."""
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -812,7 +812,6 @@ async def get_user_internal_ocr_data(user_id: str):
             """, user_id
         )
     return [dict(row) for row in rows]
-
 
 
 # ----------------------------------------------------------------------------------------------------------------------

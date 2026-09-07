@@ -12,6 +12,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const authHeader = () => `Bearer ${localStorage.getItem('session_id') ?? ''}`;
 
+
 let isLoggingOut = false;
 const doLogout = async () => {
   if (isLoggingOut) return;
@@ -54,18 +55,17 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
 };
 
 const GOLD = '#e9b741';
+const NAVY = '#0a3b5c';
+
+// Visible grid lines — grey enough to read as structure, not decoration.
+const CELL_BORDER = '#cfd8e1';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Navigation
+// Navigation — flat buttons in the header, no dropdown
 // ─────────────────────────────────────────────────────────────────────────────
-const NAV_GROUPS = [
-  {
-    key: 'ocr',
-    icon: 'document_scanner',
-    mainPath: '/',              mainLabelKey: 'navUpload' as const,
-    uploadsPath: '/my_uploads', uploadsLabelKey: 'navMyUploads' as const,
-    uploadsIcon: 'history',
-  },
+const NAV_ITEMS = [
+  { path: '/',            labelKey: 'navUpload'      as const, icon: 'document_scanner' },
+  { path: '/my_uploads',  labelKey: 'navFileUploads' as const, icon: 'query_stats' },
 ] as const;
 
 const ADMIN_LINKS = [
@@ -81,8 +81,21 @@ const ADMIN_LINKS = [
 // Upload rules — mirror the backend exactly
 // ─────────────────────────────────────────────────────────────────────────────
 const ALLOWED_EXT = ['.docx', '.pdf', '.png', '.jpg', '.jpeg'];
-const ACCEPT_ATTR = '.docx,.pdf,.png,.jpg,.jpeg';
+const ACCEPT_ATTR = '.docx,.pdf,.png,.jpeg,.jpg';
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
+
+// Brand-ish colours per format, so the file type is recognisable at a glance:
+// Word blue, Acrobat red, a distinct violet for raster images.
+const FORMAT_STYLE: Record<string, { color: string; bg: string; icon: string }> = {
+  '.docx': { color: '#2b579a', bg: '#e8effa', icon: 'description' },
+  '.pdf':  { color: '#c0362c', bg: '#fdeceb', icon: 'picture_as_pdf' },
+  '.png':  { color: '#7c3aed', bg: '#f3edff', icon: 'image' },
+  '.jpg':  { color: '#7c3aed', bg: '#f3edff', icon: 'image' },
+  '.jpeg': { color: '#7c3aed', bg: '#f3edff', icon: 'image' },
+};
+
+const formatStyle = (ext: string) =>
+  FORMAT_STYLE[(ext || '').toLowerCase()] ?? { color: '#475569', bg: '#eef1f5', icon: 'draft' };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // i18n
@@ -90,10 +103,10 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const TRANSLATIONS = {
   en: {
     bankName: 'Central Bank of Uzbekistan',
-    deptSubtitle: 'Optical Character Recognition Service',
+    deptSubtitle: 'Optical Character Recognition & Extraction Platform',
     appName: 'OCR',
-    navUpload: 'Extract Text',
-    navMyUploads: 'My Extractions',
+    navUpload: 'Text Extraction',
+    navFileUploads: 'File Uploads',
     navInternalAll: 'All Internal Jobs',
     navExternalAll: 'External API Jobs',
     navOcrStatus: 'Engine Status',
@@ -104,7 +117,7 @@ const TRANSLATIONS = {
     signOut: 'Sign Out',
 
     pageTitle: 'Extract text from a document',
-    pageDesc: 'Word files and PDFs with a text layer go to Docling. Scans, photographs and image-only PDFs go to PaddleOCR.',
+    pageDesc: "Extract text accurately from Word documents, PDFs, scanned documents, photographs, and other image-based files, enabling seamless access to and processing of document content.",
 
     dropTitle: 'Drop a file here, or choose one',
     dropHint: 'DOCX, PDF, PNG, JPG or JPEG — up to 25 MB',
@@ -123,17 +136,17 @@ const TRANSLATIONS = {
     noText: 'The extractor returned no text for this file.',
 
     fFilename: 'Stored name',
-    fExtension: 'Extension',
+    fExtension: 'File type',
     fMime: 'Content type',
     fSize: 'File size',
     fPages: 'Pages',
     fLanguage: 'Detected language',
     fStatus: 'Status',
-    fChars: 'Characters',
+    fChars: 'Number of Characters',
     fDuration: 'Duration',
     fPerPage: 'Per page',
-    fCreated: 'Started',
-    fFinished: 'Finished',
+    fCreated: 'Started at',
+    fFinished: 'Finished at',
 
     stSuccess: 'Success',
     stFailed: 'Failed',
@@ -158,7 +171,7 @@ const TRANSLATIONS = {
     cancel: 'Cancel',
     sessionExpired: 'Session expired. Please log in again.',
 
-    officialDesc: 'OCR — Text extraction service for Central Bank document files',
+    officialDesc: 'OCR — Internal Platform of the Central Bank of Uzbekistan for Extracting Text from Internal Documents',
     aboutCbu: 'About CBU',
     executiveB: 'The Executive Board',
     legislation: 'Legislation',
@@ -175,14 +188,19 @@ const TRANSLATIONS = {
     copyright: '© 2026 Central Bank of the Republic of Uzbekistan. All rights reserved.',
     privacyPolicy: 'Privacy Policy',
     termsOfUse: 'Terms of Use',
+
+    // en
+    fDetails: 'Technical details',
+    fAcross: (n: number) => `across ${n} ${n === 1 ? 'page' : 'pages'}`,
+    fPerPageSub: (s: string) => `${s} per page`,
   },
 
   ru: {
     bankName: 'Центральный Банк Республики Узбекистан',
-    deptSubtitle: 'Служба оптического распознавания символов',
+    deptSubtitle: 'Платформа распознавания & извлечения текста',
     appName: 'OCR',
-    navUpload: 'Извлечь текст',
-    navMyUploads: 'Мои извлечения',
+    navUpload: 'Извлечение текста',
+    navFileUploads: 'Загрузки файлов',
     navInternalAll: 'Все внутренние задания',
     navExternalAll: 'Задания внешнего API',
     navOcrStatus: 'Состояние движков',
@@ -193,7 +211,7 @@ const TRANSLATIONS = {
     signOut: 'Выйти',
 
     pageTitle: 'Извлечение текста из документа',
-    pageDesc: 'Файлы Word и PDF с текстовым слоем обрабатывает Docling. Сканы, фотографии и PDF из изображений — PaddleOCR.',
+    pageDesc: 'Точное извлечение текста из документов Word, PDF-файлов, отсканированных документов, фотографий и других файлов, содержащих изображения, для удобного доступа к содержимому и его дальнейшей обработки.',
 
     dropTitle: 'Перетащите файл сюда или выберите его',
     dropHint: 'DOCX, PDF, PNG, JPG или JPEG — до 25 МБ',
@@ -212,17 +230,17 @@ const TRANSLATIONS = {
     noText: 'Для этого файла текст не получен.',
 
     fFilename: 'Имя в системе',
-    fExtension: 'Расширение',
+    fExtension: 'Тип файла',
     fMime: 'Тип содержимого',
     fSize: 'Размер файла',
     fPages: 'Страниц',
     fLanguage: 'Определённый язык',
     fStatus: 'Статус',
-    fChars: 'Символов',
+    fChars: 'Количество символов',
     fDuration: 'Длительность',
     fPerPage: 'На страницу',
-    fCreated: 'Начато',
-    fFinished: 'Завершено',
+    fCreated: 'Начато в',
+    fFinished: 'Завершено в',
 
     stSuccess: 'Успешно',
     stFailed: 'Ошибка',
@@ -247,7 +265,7 @@ const TRANSLATIONS = {
     cancel: 'Отмена',
     sessionExpired: 'Сессия истекла. Пожалуйста, войдите снова.',
 
-    officialDesc: 'OCR — Служба извлечения текста из документов Центрального банка',
+    officialDesc: 'OCR — Внутренняя платформа Центрального банка Узбекистана для извлечения текста из внутренних документов',
     aboutCbu: 'О ЦБУ',
     executiveB: 'Правление',
     legislation: 'Законодательство',
@@ -264,14 +282,19 @@ const TRANSLATIONS = {
     copyright: '© 2026 Центральный Банк Республики Узбекистан. Все права защищены.',
     privacyPolicy: 'Политика конфиденциальности',
     termsOfUse: 'Условия использования',
+
+    // ru
+    fDetails: 'Технические детали',
+    fAcross: (n: number) => `на ${n} стр.`,
+    fPerPageSub: (s: string) => `${s} на страницу`,
   },
 
   uz_c: {
     bankName: 'Ўзбекистон Республикаси Марказий Банки',
-    deptSubtitle: 'Оптик белгиларни аниқлаш хизмати',
+    deptSubtitle: 'Оптик матнни аниқлаш & маълумотларни экстракция қилиш платформаси',
     appName: 'OCR',
-    navUpload: 'Матн ажратиш',
-    navMyUploads: 'Менинг ажратмаларим',
+    navUpload: 'Матнни ажратиб олиш',
+    navFileUploads: 'Файл юкламалари',
     navInternalAll: 'Барча ички ишлар',
     navExternalAll: 'Ташқи API ишлари',
     navOcrStatus: 'Двигателлар ҳолати',
@@ -282,7 +305,7 @@ const TRANSLATIONS = {
     signOut: 'Чиқиш',
 
     pageTitle: 'Ҳужжатдан матн ажратиш',
-    pageDesc: 'Word файллари ва матн қатлами бор PDF‑лар Docling орқали. Сканерлар, суратлар ва фақат расмли PDF‑лар PaddleOCR орқали.',
+    pageDesc: 'Word ҳужжатлари, PDF-файллар, сканерланган ҳужжатлар, фотосуратлар ва бошқа тасвирга асосланган файллардан матнни аниқ ажратиб олиш ҳамда ҳужжат мазмунидан қулай фойдаланиш ва уни қайта ишлаш имконини беради.',
 
     dropTitle: 'Файлни бу ерга ташланг ёки танланг',
     dropHint: 'DOCX, PDF, PNG, JPG ёки JPEG — 25 МБ гача',
@@ -301,17 +324,17 @@ const TRANSLATIONS = {
     noText: 'Бу файл учун матн олинмади.',
 
     fFilename: 'Тизимдаги номи',
-    fExtension: 'Кенгайтма',
+    fExtension: 'Файл тури',
     fMime: 'Контент тури',
     fSize: 'Файл ҳажми',
     fPages: 'Саҳифалар',
     fLanguage: 'Аниқланган тил',
     fStatus: 'Ҳолат',
-    fChars: 'Белгилар',
+    fChars: 'Матн белгилар сони',
     fDuration: 'Давомийлиги',
     fPerPage: 'Саҳифасига',
-    fCreated: 'Бошланди',
-    fFinished: 'Тугади',
+    fCreated: 'Бошланган вақт',
+    fFinished: 'Тугаган вақт',
 
     stSuccess: 'Муваффақиятли',
     stFailed: 'Хатолик',
@@ -336,7 +359,7 @@ const TRANSLATIONS = {
     cancel: 'Бекор қилиш',
     sessionExpired: 'Сессия муддати тугади. Илтимос, қайта киринг.',
 
-    officialDesc: 'OCR — Марказий банк ҳужжатларидан матн ажратиш хизмати',
+    officialDesc: 'OCR — Ўзбекистон Марказий банкининг ички ҳужжатлардан матн ажратиб олиш',
     aboutCbu: 'МБ Ҳақида',
     executiveB: 'Бошқарув кенгаши',
     legislation: 'Қонунчилик',
@@ -353,14 +376,19 @@ const TRANSLATIONS = {
     copyright: '© 2026 Ўзбекистон Республикаси Марказий Банки. Барча ҳуқуқлар ҳимояланган.',
     privacyPolicy: 'Махфийлик сиёсати',
     termsOfUse: 'Фойдаланиш шартлари',
+
+    // uz_c
+    fDetails: 'Техник тафсилотлар',
+    fAcross: (n: number) => `${n} саҳифада`,
+    fPerPageSub: (s: string) => `саҳифасига ${s}`,
   },
 
   uz_l: {
     bankName: "O'zbekiston Respublikasi Markaziy Banki",
-    deptSubtitle: 'Optik belgilarni aniqlash xizmati',
+    deptSubtitle: 'Optik matnni aniqlash va ma’lumotlarni ekstraksiya qilish platformasi',
     appName: 'OCR',
-    navUpload: 'Matn ajratish',
-    navMyUploads: 'Mening ajratmalarim',
+    navUpload: 'Matnni ajratib olish',
+    navFileUploads: 'Fayl yuklamalari',
     navInternalAll: 'Barcha ichki ishlar',
     navExternalAll: 'Tashqi API ishlari',
     navOcrStatus: 'Dvigatellar holati',
@@ -371,7 +399,7 @@ const TRANSLATIONS = {
     signOut: 'Chiqish',
 
     pageTitle: 'Hujjatdan matn ajratish',
-    pageDesc: "Word fayllari va matn qatlami bor PDF'lar Docling orqali. Skanerlar, suratlar va faqat rasmli PDF'lar PaddleOCR orqali.",
+    pageDesc: "Word hujjatlari, PDF-fayllar, skanerlangan hujjatlar, fotosuratlar va boshqa tasvirga asoslangan fayllardan matnni aniq ajratib olish hamda hujjat mazmunidan qulay foydalanish va uni qayta ishlash imkonini beradi.",
 
     dropTitle: 'Faylni bu yerga tashlang yoki tanlang',
     dropHint: 'DOCX, PDF, PNG, JPG yoki JPEG — 25 MB gacha',
@@ -390,17 +418,17 @@ const TRANSLATIONS = {
     noText: 'Bu fayl uchun matn olinmadi.',
 
     fFilename: 'Tizimdagi nomi',
-    fExtension: 'Kengaytma',
+    fExtension: 'Fayl turi',
     fMime: 'Kontent turi',
     fSize: 'Fayl hajmi',
     fPages: 'Sahifalar',
     fLanguage: 'Aniqlangan til',
     fStatus: 'Holat',
-    fChars: 'Belgilar',
+    fChars: 'Matn belgilar soni',
     fDuration: 'Davomiyligi',
     fPerPage: 'Sahifasiga',
-    fCreated: 'Boshlandi',
-    fFinished: 'Tugadi',
+    fCreated: 'Boshlangan vaqt',
+    fFinished: 'Tugagan vaqt',
 
     stSuccess: 'Muvaffaqiyatli',
     stFailed: 'Xatolik',
@@ -425,7 +453,7 @@ const TRANSLATIONS = {
     cancel: 'Bekor qilish',
     sessionExpired: 'Sessiya muddati tugadi. Iltimos, qayta kiring.',
 
-    officialDesc: 'OCR — Markaziy bank hujjatlaridan matn ajratish xizmati',
+    officialDesc: 'OCR — O‘zbekiston Markaziy bankining ichki hujjatlardan matn ajratib olish platformasi',
     aboutCbu: 'MBU Haqida',
     executiveB: 'Boshqaruv kengashi',
     legislation: 'Qonunchilik',
@@ -442,6 +470,11 @@ const TRANSLATIONS = {
     copyright: "© 2026 O'zbekiston Respublikasi Markaziy Banki. Barcha huquqlar himoyalangan.",
     privacyPolicy: 'Maxfiylik siyosati',
     termsOfUse: 'Foydalanish shartlari',
+
+    // uz_l
+    fDetails: 'Texnik tafsilotlar',
+    fAcross: (n: number) => `${n} sahifada`,
+    fPerPageSub: (s: string) => `sahifasiga ${s}`,
   },
 };
 
@@ -459,7 +492,7 @@ interface OcrResult {
   file_extension: string;
   mime_type: string;
   file_size: number;
-  page_count: number;
+  page_count: number | null;
   language: string | null;
   status: string;
   extracted_text: string | null;
@@ -479,6 +512,12 @@ const formatBytes = (bytes: number): string => {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 };
 
+// The full DOCX MIME string is 70+ characters and tells the reader nothing.
+const shortMime = (mime: string, ext: string): string => {
+  if ((ext || '').toLowerCase() === '.docx') return 'application/vnd.openxmlformats';
+  return mime || '—';
+};
+
 const formatDuration = (raw: number | string | null): string => {
   const s = Number(raw);
   if (!isFinite(s)) return '—';
@@ -492,17 +531,32 @@ const formatDateTime = (iso: string | null): string => {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return String(iso);
   const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}          ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 };
 
 const formatNumber = (n: number): string =>
   String(n ?? 0).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
-const extIcon = (ext: string): string => {
-  const e = (ext || '').toLowerCase();
-  if (e === '.docx') return 'description';
-  if (e === '.pdf') return 'picture_as_pdf';
-  return 'image';
+// Colour the duration by how long it took: fast is green, slow is amber.
+// The threshold is per page where pages are known, flat otherwise.
+const durationStyle = (seconds: number, pages: number | null) => {
+  const perPage = pages && pages > 0 ? seconds / pages : seconds;
+
+  if (perPage < 1)
+    return { color: '#16A34A', bg: '#16A34A' }; // Fast — green
+
+  if (perPage < 5)
+    return { color: '#C47A2C', bg: '#FDF0DE' }; // Medium — orange
+
+  return { color: '#B94A3A', bg: '#F9E7E3' }; // Slow — red
+};
+
+const LANGUAGE_STYLE: Record<string, { color: string; bg: string; label: string }> = {
+  uz_l:    { color: '#3574D3', bg: '#E8F0FE', label: "O'zbek tili" },
+  uz_c:    { color: '#3574D3', bg: '#E8F0FE', label: 'Ўзбек (Кирил)' },
+  ru:      { color: '#3574D3', bg: '#E8F0FE', label: 'Русский' },
+  en:      { color: '#3574D3', bg: '#E8F0FE', label: 'English' },
+  unknown: { color: '#64748B', bg: '#EEF1F5', label: '—' },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -516,13 +570,11 @@ const HomePage: React.FC = () => {
   const [lang, setLang] = useState<LangKey>('en');
   const [pendingLang, setPendingLang] = useState<LangKey | null>(null);
   const t = TRANSLATIONS[lang] ?? TRANSLATIONS.en;
+  const [showDetails, setShowDetails] = useState(false);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [openGroup, setOpenGroup] = useState<string | null>(null);
-  const [menuPos, setMenuPos] = useState<{ left: number; top: number } | null>(null);
-  const navRef = useRef<HTMLDivElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -552,11 +604,10 @@ const HomePage: React.FC = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  /* ── Close menus on outside click ── */
+  /* ── Close the avatar menu on outside click ── */
   useEffect(() => {
     const h = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setDropdownOpen(false);
-      if (navRef.current && !navRef.current.contains(e.target as Node)) setOpenGroup(null);
     };
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
@@ -574,7 +625,7 @@ const HomePage: React.FC = () => {
 
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/get_user_internal_ocr_data`, {
+        const res = await fetch(`${API_BASE_URL}/api/get_single_user_internal_ocr_data`, {
           headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
         });
         if (res.status === 401 || res.status === 403) { killSession(); return; }
@@ -602,7 +653,7 @@ const HomePage: React.FC = () => {
     const interval = setInterval(async () => {
       if (!active) return;
       try {
-        const res = await fetch(`${API_BASE_URL}/api/get_user_internal_ocr_data`, {
+        const res = await fetch(`${API_BASE_URL}/api/get_single_user_internal_ocr_data`, {
           headers: { Authorization: authHeader(), 'Content-Type': 'application/json' },
         });
         if (res.status === 401 || res.status === 403) killSession();
@@ -742,78 +793,55 @@ const HomePage: React.FC = () => {
 
   const statusStyle = (status: string) => {
     switch (status) {
-      case 'success':     return { label: t.stSuccess,     color: '#166534', bg: '#dcfce7', border: '#86efac', icon: 'check_circle' };
-      case 'failed':      return { label: t.stFailed,      color: '#991b1b', bg: '#fee2e2', border: '#fca5a5', icon: 'error' };
-      case 'timeout':     return { label: t.stTimeout,     color: '#9a3412', bg: '#ffedd5', border: '#fdba74', icon: 'schedule' };
-      case 'interrupted': return { label: t.stInterrupted, color: '#854d0e', bg: '#fef3c7', border: '#fcd34d', icon: 'warning' };
-      default:            return { label: t.stProcessing,  color: '#1e40af', bg: '#dbeafe', border: '#93c5fd', icon: 'autorenew' };
+      case 'success':     return { label: t.stSuccess,     color: '#15803d', bg: '#e7f8ec', border: '#8fdca6', icon: 'check_circle' };
+      case 'failed':      return { label: t.stFailed,      color: '#b91c1c', bg: '#fdeaea', border: '#f3a9a9', icon: 'error' };
+      case 'timeout':     return { label: t.stTimeout,     color: '#c2410c', bg: '#fdeee4', border: '#f5bf94', icon: 'schedule' };
+      case 'interrupted': return { label: t.stInterrupted, color: '#a16207', bg: '#fdf5da', border: '#ecd07a', icon: 'warning' };
+      default:            return { label: t.stProcessing,  color: '#1d4ed8', bg: '#e8eefe', border: '#a8c0fb', icon: 'autorenew' };
     }
   };
 
-  // ── Nav group (same interaction as the GoldBase header) ──
-  const NavGroup = ({ group }: { group: typeof NAV_GROUPS[number] }) => {
-    const isActive = currentPath === group.mainPath || currentPath === group.uploadsPath;
-    const isOpen = openGroup === group.key;
-    return (
-      <div style={{ position: 'relative', flexShrink: 0 }}>
-        <button
-          onClick={(e) => {
-            if (openGroup === group.key) { setOpenGroup(null); return; }
-            const r = e.currentTarget.getBoundingClientRect();
-            setMenuPos({ left: r.left, top: r.bottom + 8 });
-            setOpenGroup(group.key);
-          }}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px',
-            background: isActive ? 'rgba(255,255,255,0.18)' : 'transparent',
-            border: isActive ? '1px solid rgba(255,255,255,0.35)' : '1px solid transparent',
-            borderBottom: isActive ? `2px solid ${GOLD}` : '2px solid transparent',
-            borderRadius: '8px', color: isActive ? 'white' : 'rgba(255,255,255,0.65)',
-            fontSize: '14px', fontWeight: isActive ? 600 : 400,
-            cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s', outline: 'none',
-          }}
-          onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.background = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = 'white'; } }}
-          onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.65)'; } }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>{group.icon}</span>
-          {!isMobile && (t[group.mainLabelKey] as string)}
-          <span className="material-symbols-outlined" style={{ fontSize: '14px', opacity: 0.75, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>expand_more</span>
-        </button>
-        {isOpen && menuPos && (
-          <div style={{
-            position: 'fixed', top: menuPos.top, left: menuPos.left,
-            background: 'white', borderRadius: '12px', minWidth: '230px',
-            boxShadow: '0 16px 32px rgba(0,0,0,0.18)', overflow: 'hidden',
-            border: '1px solid #e2e8f0', zIndex: 300, animation: 'dropIn 0.15s ease',
-          }}>
-            {[
-              { path: group.mainPath,    label: t[group.mainLabelKey] as string,    icon: group.icon,        color: '#0a3b5c', bg: '#eef2f7' },
-              { path: group.uploadsPath, label: t[group.uploadsLabelKey] as string, icon: group.uploadsIcon, color: '#b85e00', bg: '#fef3c7' },
-            ].map((item) => {
-              const itemActive = currentPath === item.path;
-              return (
-                <button key={item.path} onClick={() => { navigate(item.path); setOpenGroup(null); }}
-                  style={{ width: '100%', background: itemActive ? item.bg : 'none', border: 'none', textAlign: 'left', padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', color: '#1f2937', fontSize: '13px', fontWeight: itemActive ? 600 : 500, transition: 'background 0.15s' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = item.bg; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = itemActive ? item.bg : 'none'; }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '17px', color: item.color }}>{item.icon}</span>
-                  {item.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  };
-
   const st = result ? statusStyle(result.status) : null;
-  const perPage = result && result.page_count > 0 ? Number(result.duration) / result.page_count : null;
-  const charsPerPage = result && result.page_count > 0 ? Math.round((result.extracted_text_length ?? 0) / result.page_count) : null;
+  const pages = result?.page_count ?? null;
+  const perPage = result && pages && pages > 0 ? Number(result.duration) / pages : null;
+  const charsPerPage = result && pages && pages > 0 ? Math.round((result.extracted_text_length ?? 0) / pages) : null;
+
+  const fmt = result ? formatStyle(result.file_extension) : null;
+  const durStyle = result ? durationStyle(Number(result.duration), pages) : null;
+  const langStyle = result
+    ? LANGUAGE_STYLE[result.language ?? 'unknown'] ?? { color: '#334155', bg: '#eef1f5', label: (result.language ?? '—').toUpperCase() }
+    : null;
+
+  /* ── Result cells: label, value, icon, and the colour the value carries ── */
+  type Cell = { label: string; value: string; icon: string; color: string; bg: string };
+
+  const cells: Cell[] = result && st && fmt && durStyle && langStyle ? [
+    { label: t.fStatus,    value: st.label,                                         icon: st.icon,     color: st.color,   bg: st.bg },
+    { label: t.fExtension, value: (result.file_extension || '—').replace('.', '').toUpperCase(),
+                                                                                    icon: fmt.icon,    color: fmt.color,  bg: fmt.bg },
+    { label: t.fLanguage,  value: langStyle.label,                                  icon: 'translate', color: langStyle.color, bg: langStyle.bg },
+    { label: t.fDuration,  value: formatDuration(result.duration),                  icon: 'timer',     color: durStyle.color,  bg: durStyle.bg },
+
+    ...(pages != null ? [
+      { label: t.fPages,   value: String(pages),                                    icon: 'layers',    color: '#0e7490', bg: '#e4f5f9' },
+    ] : []),
+    { label: t.fChars,     value: formatNumber(result.extracted_text_length),       icon: 'text_fields', color: '#0f766e', bg: '#e6f7f5' },
+    ...(perPage != null ? [
+      { label: t.fPerPage, value: `${perPage.toFixed(2)}s · ${formatNumber(charsPerPage ?? 0)} ch`,
+                                                                                    icon: 'speed',     color: '#a21caf', bg: '#fbeafb' },
+    ] : []),
+    { label: t.fSize,      value: formatBytes(result.file_size),                    icon: 'hard_drive', color: '#475569', bg: '#eef1f5' },
+
+    { label: t.fMime,      value: result.mime_type || '—',                          icon: 'code',      color: '#1d4ed8', bg: '#e8eefe' },
+    { label: t.fCreated,   value: formatDateTime(result.created_at),                icon: 'play_circle', color: '#475569', bg: '#eef1f5' },
+    { label: t.fFinished,  value: formatDateTime(result.finished_at),               icon: 'check_circle', color: '#15803d', bg: '#e7f8ec' },
+    { label: t.fFilename,  value: result.filename || '—',                           icon: 'badge',     color: '#475569', bg: '#eef1f5' },
+  ] : [];
+
+  const columns = isMobile ? 2 : 4;
 
   return (
-    <div style={{ minHeight: '100vh', width: '100%', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', backgroundColor: '#f0f2f5', fontFamily: '"Inter","Segoe UI",system-ui,-apple-system,sans-serif' }}>
+    <div style={{ minHeight: '100vh', width: '100%', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', backgroundColor: '#f0f2f5', fontFamily: '"Inter","Segoe UI",system-ui,-apple-system,sans-serif', textAlign: 'left' }}>
 
       {/* Toast */}
       {toast && (
@@ -840,9 +868,9 @@ const HomePage: React.FC = () => {
             onClick={(e) => e.stopPropagation()}>
             <div style={{ textAlign: 'center', marginBottom: '20px' }}>
               <div style={{ width: '56px', height: '56px', background: '#e8f0fe', borderRadius: '16px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '14px' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '28px', color: '#0a3b5c' }}>language</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '28px', color: NAVY }}>language</span>
               </div>
-              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0a3b5c' }}>{t.langConfirmTitle}</h3>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: NAVY }}>{t.langConfirmTitle}</h3>
               <p style={{ margin: '8px 0 0', fontSize: '14px', color: '#64748b', lineHeight: 1.5 }}>
                 {t.langConfirmMsg(LANG_NAMES[pendingLang])}
               </p>
@@ -854,7 +882,7 @@ const HomePage: React.FC = () => {
                 onMouseLeave={(e) => (e.currentTarget.style.background = '#f1f5f9')}
               >{t.cancel}</button>
               <button onClick={() => applyLanguageChange(pendingLang)}
-                style={{ flex: 1, padding: '11px', background: 'linear-gradient(135deg,#0a3b5c,#1a5080)', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 600, color: 'white', cursor: 'pointer', boxShadow: '0 4px 12px rgba(10,59,92,0.3)' }}
+                style={{ flex: 1, padding: '11px', background: `linear-gradient(135deg,${NAVY},#1a5080)`, border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 600, color: 'white', cursor: 'pointer', boxShadow: '0 4px 12px rgba(10,59,92,0.3)' }}
               >{t.confirm}</button>
             </div>
           </div>
@@ -862,7 +890,7 @@ const HomePage: React.FC = () => {
       )}
 
       {/* ══════════════════════ HEADER ══════════════════════ */}
-      <header style={{ width: '100%', background: 'linear-gradient(135deg,#0a3b5c 0%,#1a4b70 100%)', boxShadow: '0 4px 20px rgba(0,40,70,0.18)', borderBottom: `3px solid ${GOLD}`, boxSizing: 'border-box', position: 'sticky', top: 0, zIndex: 100 }}>
+      <header style={{ width: '100%', background: `linear-gradient(135deg,${NAVY} 0%,#1a4b70 100%)`, boxShadow: '0 4px 20px rgba(0,40,70,0.18)', borderBottom: `3px solid ${GOLD}`, boxSizing: 'border-box', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: isMobile ? '0 12px' : '0 20px', height: '60px', minWidth: 0 }}>
           <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, cursor: 'pointer' }}>
             <div style={{ width: '44px', height: '44px', background: 'white', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.12)', padding: '4px', flexShrink: 0 }}>
@@ -879,11 +907,35 @@ const HomePage: React.FC = () => {
 
           {!isMobile && <div style={{ width: '1px', height: '28px', background: 'rgba(255,255,255,0.15)', flexShrink: 0 }} />}
 
-          <div ref={navRef} style={{ padding: '0 8px', overflowX: 'auto' }}>
-            <nav style={{ display: 'flex', alignItems: 'center', gap: '4px', height: '40px', minWidth: 'max-content', flexWrap: 'nowrap' }}>
-              {NAV_GROUPS.map((g) => <NavGroup key={g.key} group={g} />)}
-            </nav>
-          </div>
+          {/* Flat nav — one button per page, no dropdown */}
+          <nav style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, overflowX: 'auto' }}>
+            {NAV_ITEMS.map((item) => {
+              const active = currentPath === item.path;
+              return (
+                <button
+                  key={item.path}
+                  onClick={() => navigate(item.path)}
+                  title={t[item.labelKey] as string}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '7px',
+                    padding: isMobile ? '7px 10px' : '7px 14px',
+                    background: active ? 'rgba(255,255,255,0.18)' : 'transparent',
+                    border: active ? '1px solid rgba(255,255,255,0.35)' : '1px solid transparent',
+                    borderBottom: active ? `2px solid ${GOLD}` : '2px solid transparent',
+                    borderRadius: '8px',
+                    color: active ? 'white' : 'rgba(255,255,255,0.68)',
+                    fontFamily: 'inherit', fontSize: '14px', fontWeight: active ? 600 : 400,
+                    cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s', flexShrink: 0,
+                  }}
+                  onMouseEnter={(e) => { if (!active) { e.currentTarget.style.background = 'rgba(255,255,255,0.10)'; e.currentTarget.style.color = 'white'; } }}
+                  onMouseLeave={(e) => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255,255,255,0.68)'; } }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>{item.icon}</span>
+                  {!isMobile && (t[item.labelKey] as string)}
+                </button>
+              );
+            })}
+          </nav>
 
           <div style={{ flex: 1, minWidth: 0 }} />
 
@@ -894,6 +946,7 @@ const HomePage: React.FC = () => {
                   background: lang === key ? GOLD : 'transparent',
                   color: lang === key ? '#0a2a40' : 'rgba(255,255,255,0.75)',
                   border: 'none', borderRadius: '6px', padding: '4px 8px', fontSize: '11px', fontWeight: 600,
+                  fontFamily: 'inherit',
                   cursor: lang === key ? 'default' : 'pointer', transition: 'all 0.18s', minWidth: '26px',
                 }}
                   onMouseEnter={(e) => { if (lang !== key) e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
@@ -906,7 +959,8 @@ const HomePage: React.FC = () => {
               <button onClick={() => setDropdownOpen((o) => !o)} style={{
                 background: 'rgba(255,255,255,0.1)', border: '2px solid rgba(233,183,65,0.5)',
                 borderRadius: '50%', width: '42px', height: '42px', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', cursor: 'pointer', color: 'white', fontSize: '16px', fontWeight: 700, transition: 'all 0.2s',
+                justifyContent: 'center', cursor: 'pointer', color: 'white', fontSize: '16px', fontWeight: 700,
+                fontFamily: 'inherit', transition: 'all 0.2s',
               }}
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = GOLD; e.currentTarget.style.background = 'rgba(233,183,65,0.2)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(233,183,65,0.5)'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
@@ -916,16 +970,16 @@ const HomePage: React.FC = () => {
                 <div style={{ position: 'absolute', top: 'calc(100% + 10px)', right: 0, background: 'white', borderRadius: '16px', minWidth: '270px', boxShadow: '0 20px 40px rgba(0,0,0,0.18)', overflow: 'hidden', border: '1px solid #e2e8f0', zIndex: 200, animation: 'dropIn 0.18s ease' }}>
                   <div style={{ padding: '18px 20px', borderBottom: '1px solid #f1f5f9', background: 'linear-gradient(135deg,#f8fafc,#eef2f7)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '46px', height: '46px', borderRadius: '50%', background: 'linear-gradient(135deg,#0a3b5c,#1a5080)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '17px', fontWeight: 700, flexShrink: 0, border: `2px solid ${GOLD}` }}>
+                      <div style={{ width: '46px', height: '46px', borderRadius: '50%', background: `linear-gradient(135deg,${NAVY},#1a5080)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '17px', fontWeight: 700, flexShrink: 0, border: `2px solid ${GOLD}` }}>
                         {getInitials(user)}
                       </div>
                       <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, color: '#0a3b5c', fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontWeight: 700, color: NAVY, fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {user ? `${user.first_name} ${user.last_name}` : '—'}
                         </div>
                         <div style={{ color: '#64748b', fontSize: '12px', marginTop: '1px' }}>@{user?.username ?? '—'}</div>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '5px', padding: '2px 8px', background: 'rgba(233,183,65,0.12)', border: '1px solid rgba(233,183,65,0.3)', borderRadius: '20px', fontSize: '11px', color: '#0a3b5c', fontWeight: 600 }}>
-                          <span className="material-symbols-outlined" style={{ fontSize: '11px' }}>domain</span>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '5px', padding: '2px 8px', background: 'rgba(233,183,65,0.12)', border: '1px solid rgba(233,183,65,0.3)', borderRadius: '20px', fontSize: '11px', color: NAVY, fontWeight: 600 }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>domain</span>
                           {user?.department ?? '—'}
                         </div>
                       </div>
@@ -937,7 +991,7 @@ const HomePage: React.FC = () => {
                       <div style={{ padding: '4px 8px', marginBottom: '2px', fontSize: '11px', fontWeight: 600, color: '#94a3b8' }}>{t.administration}</div>
                       {ADMIN_LINKS.map(({ icon, labelKey, route, color, bg }) => (
                         <button key={route} onClick={() => { navigate(route); setDropdownOpen(false); }}
-                          style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '9px 10px', borderRadius: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', color: '#1f2937', fontSize: '13px', fontWeight: 500, transition: 'all 0.15s', marginBottom: '1px' }}
+                          style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '9px 10px', borderRadius: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', color: '#1f2937', fontSize: '13px', fontWeight: 500, fontFamily: 'inherit', transition: 'all 0.15s', marginBottom: '1px' }}
                           onMouseEnter={(e) => { e.currentTarget.style.background = bg; }}
                           onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
                         >
@@ -951,7 +1005,7 @@ const HomePage: React.FC = () => {
 
                   <div style={{ padding: '8px 10px' }}>
                     <button onClick={() => doLogout()}
-                      style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '9px 10px', borderRadius: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', color: '#dc2626', fontSize: '13px', fontWeight: 500, transition: 'background 0.15s' }}
+                      style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '9px 10px', borderRadius: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', color: '#dc2626', fontSize: '13px', fontWeight: 500, fontFamily: 'inherit', transition: 'background 0.15s' }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = '#fef2f2'; }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
                     >
@@ -971,21 +1025,21 @@ const HomePage: React.FC = () => {
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
 
           {/* Page intro */}
-          <div style={{ marginBottom: '20px' }}>
-            <h1 style={{ fontSize: isMobile ? '20px' : '24px', fontWeight: 700, color: '#0a3b5c', margin: '0 0 6px' }}>{t.pageTitle}</h1>
-            <p style={{ fontSize: '14px', color: '#64748b', margin: 0, lineHeight: 1.6, maxWidth: '150ch', textAlign: 'center' }}>{t.pageDesc}</p>
+          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+            <h1 style={{ fontSize: isMobile ? '20px' : '25px', fontWeight: 700, color: NAVY, margin: '0 0 8px', letterSpacing: '-0.3px' }}>{t.pageTitle}</h1>
+            <p style={{ fontSize: '14px', color: '#64748b', margin: '0 auto', lineHeight: 1.6, maxWidth: '84ch' }}>{t.pageDesc}</p>
           </div>
 
           {/* ── Drop zone ── */}
-          <div style={{ background: 'white', borderRadius: '18px', padding: isMobile ? '18px' : '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)', marginBottom: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '18px', padding: isMobile ? '18px' : '24px', border: `1px solid ${CELL_BORDER}`, boxShadow: '0 2px 12px rgba(10,40,70,0.06)', marginBottom: '20px' }}>
             <div
               onDragOver={(e) => { e.preventDefault(); if (!uploading) setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={handleDrop}
               onClick={() => { if (!uploading) fileInputRef.current?.click(); }}
               style={{
-                border: `2px dashed ${dragging ? GOLD : file ? '#bfdbfe' : '#d9dee3'}`,
-                background: dragging ? '#fffbeb' : file ? '#f8fbff' : '#fafbfc',
+                border: `2px dashed ${dragging ? GOLD : file ? '#8fb6d6' : '#bcc7d2'}`,
+                background: dragging ? '#fffbeb' : file ? '#f4f9ff' : '#fafbfc',
                 borderRadius: '14px',
                 padding: isMobile ? '26px 16px' : '38px 24px',
                 textAlign: 'center',
@@ -1003,23 +1057,26 @@ const HomePage: React.FC = () => {
 
               {!file ? (
                 <>
-                  <span className="material-symbols-outlined" style={{ fontSize: '46px', color: '#94a3b8' }}>upload_file</span>
-                  <div style={{ fontSize: '16px', fontWeight: 600, color: '#0a3b5c', marginTop: '10px' }}>{t.dropTitle}</div>
+                  <span className="material-symbols-outlined" style={{ fontSize: '46px', color: '#8fa3b6' }}>upload_file</span>
+                  <div style={{ fontSize: '16px', fontWeight: 600, color: NAVY, marginTop: '10px' }}>{t.dropTitle}</div>
                   <div style={{ fontSize: '13px', color: '#94a3b8', marginTop: '6px' }}>{t.dropHint}</div>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', marginTop: '16px', padding: '9px 18px', background: '#0a3b5c', color: 'white', borderRadius: '10px', fontSize: '13px', fontWeight: 600 }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', marginTop: '16px', padding: '9px 18px', background: NAVY, color: 'white', borderRadius: '10px', fontSize: '13px', fontWeight: 600 }}>
                     <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>folder_open</span>
                     {t.chooseFile}
                   </div>
                 </>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px', textAlign: 'left', flexWrap: 'wrap', justifyContent: 'center' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#eef2f7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '26px', color: '#0a3b5c' }}>
-                      {extIcon(file.name.slice(file.name.lastIndexOf('.')))}
-                    </span>
-                  </div>
+                  {(() => {
+                    const s = formatStyle(file.name.slice(file.name.lastIndexOf('.')));
+                    return (
+                      <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: s.bg, border: `1px solid ${s.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '26px', color: s.color }}>{s.icon}</span>
+                      </div>
+                    );
+                  })()}
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: '15px', fontWeight: 600, color: '#0a3b5c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: '15px', fontWeight: 600, color: NAVY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {file.name}
                     </div>
                     <div style={{ fontSize: '13px', color: '#64748b', marginTop: '2px' }}>{formatBytes(file.size)}</div>
@@ -1027,11 +1084,24 @@ const HomePage: React.FC = () => {
                   {!uploading && (
                     <button
                       onClick={(e) => { e.stopPropagation(); clearFile(); }}
-                      style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '7px 13px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '9px', fontSize: '13px', color: '#6b7280', cursor: 'pointer', flexShrink: 0 }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = '#f9fafb'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '7px',
+                        padding: '9px 16px',
+                        background: 'white',
+                        border: '1.5px solid #f3a9a9',
+                        borderRadius: '10px',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        color: '#b91c1c',
+                        fontFamily: 'inherit',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        transition: 'background 0.15s, border-color 0.15s',
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#fdeaea'; e.currentTarget.style.borderColor = '#b91c1c'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = '#f3a9a9'; }}
                     >
-                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+                      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>close</span>
                       {t.removeFile}
                     </button>
                   )}
@@ -1051,9 +1121,9 @@ const HomePage: React.FC = () => {
                 onClick={handleExtract}
                 disabled={!file || uploading}
                 style={{
-                  padding: '12px 30px', fontSize: '15px', fontWeight: 600,
-                  background: file && !uploading ? `linear-gradient(135deg,${GOLD} 0%,#d4a017 100%)` : '#e0e0e0',
-                  color: file && !uploading ? '#0a3b5c' : '#999',
+                  padding: '12px 30px', fontSize: '15px', fontWeight: 600, fontFamily: 'inherit',
+                  background: file && !uploading ? `linear-gradient(135deg,${GOLD} 0%,#d4a017 100%)` : '#e0e4e8',
+                  color: file && !uploading ? NAVY : '#98a2ad',
                   border: 'none', borderRadius: '12px',
                   cursor: !file || uploading ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: '9px',
@@ -1073,80 +1143,136 @@ const HomePage: React.FC = () => {
 
           {/* ── Result ── */}
           {result && st && (
-            <div style={{ background: 'white', borderRadius: '18px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)', overflow: 'hidden', marginBottom: '20px' }}>
+            <div style={{ background: 'white', borderRadius: '18px', border: `1px solid ${CELL_BORDER}`, boxShadow: '0 2px 12px rgba(10,40,70,0.06)', overflow: 'hidden', marginBottom: '20px' }}>
 
-              {/* Status strip */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 22px', background: st.bg, borderBottom: `1px solid ${st.border}`, flexWrap: 'wrap' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '22px', color: st.color }}>{st.icon}</span>
-                <div style={{ fontSize: '15px', fontWeight: 700, color: st.color }}>{st.label}</div>
-                {cached && (
-                  <div style={{ fontSize: '12.5px', color: '#854d0e', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '20px', padding: '3px 12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>cached</span>
-                    {t.resultCached}
+              {/* ── File identity ── */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: isMobile ? '18px' : '20px 24px', borderBottom: `1px solid ${CELL_BORDER}`, flexWrap: 'wrap' }}>
+                  <div style={{ width: '58px', height: '58px', borderRadius: '14px', background: fmt.bg, border: `1.5px solid ${fmt.color}33`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '24px', color: fmt.color, lineHeight: 1 }}>{fmt.icon}</span>
+                    <span style={{ fontSize: '9px', fontWeight: 800, color: fmt.color, letterSpacing: '0.6px', marginTop: '3px' }}>
+                      {(result.file_extension || '').replace('.', '').toUpperCase()}
+                    </span>
                   </div>
-                )}
-                <div style={{ flex: 1 }} />
-                <button
-                  onClick={clearFile}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 15px', background: 'white', border: '1px solid rgba(0,0,0,0.08)', borderRadius: '9px', fontSize: '13px', fontWeight: 600, color: '#0a3b5c', cursor: 'pointer' }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
-                  {t.newFile}
-                </button>
-              </div>
 
-              {/* Field grid — every value the API returns */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
-                borderBottom: '1px solid #f0f0f0',
-              }}>
-                {[
-                  { label: t.fStatus,    value: st.label,                                              icon: 'flag' },
-                  { label: t.fPages,     value: String(result.page_count ?? '—'),                      icon: 'description' },
-                  { label: t.fLanguage,  value: result.language ? result.language.toUpperCase() : '—', icon: 'translate' },
-                  { label: t.fChars,     value: formatNumber(result.extracted_text_length),            icon: 'text_fields' },
-                  { label: t.fDuration,  value: formatDuration(result.duration),                       icon: 'timer' },
-                  { label: t.fPerPage,   value: perPage != null ? `${perPage.toFixed(2)}s · ${formatNumber(charsPerPage ?? 0)} ch` : '—', icon: 'speed' },
-                  { label: t.fSize,      value: formatBytes(result.file_size),                         icon: 'hard_drive' },
-                  { label: t.fExtension, value: (result.file_extension || '—').toUpperCase(),          icon: extIcon(result.file_extension) },
-                  { label: t.fMime,      value: result.mime_type || '—',                               icon: 'code' },
-                  { label: t.fFilename,  value: result.filename || '—',                                icon: 'badge' },
-                  { label: t.fCreated,   value: formatDateTime(result.created_at),                     icon: 'play_circle' },
-                  { label: t.fFinished,  value: formatDateTime(result.finished_at),                    icon: 'check_circle' },
-                ].map((f, i) => (
-                  <div key={f.label} style={{
-                    padding: '14px 18px',
-                    borderRight: '1px solid #f0f0f0',
-                    borderTop: i >= (isMobile ? 2 : 4) ? '1px solid #f0f0f0' : 'none',
-                    minWidth: 0,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#94a3b8', fontWeight: 500, marginBottom: '5px' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>{f.icon}</span>
-                      {f.label}
-                    </div>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: '#0a3b5c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.value}>
-                      {f.value}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div title={result.filename} style={{ fontSize: '17px', fontWeight: 700, color: NAVY, letterSpacing: '-0.2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {result.filename || '—'}
                     </div>
                   </div>
-                ))}
-              </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, flexWrap: 'wrap' }}>
+                    {cached && (
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#a16207', background: '#fdf5da', border: '1px solid #ecd07a', borderRadius: '20px', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>cached</span>
+                        {t.resultCached}
+                      </span>
+                    )}
+                    <span style={{ fontSize: '13.5px', fontWeight: 700, color: st.color, background: st.bg, border: `1.5px solid ${st.border}`, borderRadius: '20px', padding: '7px 15px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '17px' }}>{st.icon}</span>
+                      {st.label}
+                    </span>
+                    <button onClick={clearFile}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 15px', background: 'white', border: `1px solid ${CELL_BORDER}`, borderRadius: '9px', fontSize: '13px', fontWeight: 600, color: NAVY, fontFamily: 'inherit', cursor: 'pointer' }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#f6f8fa'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>add</span>
+                      {t.newFile}
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── The three numbers worth reading ── */}
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', background: CELL_BORDER, gap: '1px', borderBottom: `1px solid ${CELL_BORDER}` }}>
+                  {[
+                    {
+                      label: t.fChars,
+                      icon: 'notes',
+                      color: '#3D7A52',
+                      value: formatNumber(result.extracted_text_length),
+                    },
+                    {
+                      label: t.fDuration,
+                      icon: 'timer',
+                      color: durStyle.color,
+                      value: formatDuration(result.duration),
+                    },
+                    {
+                      label: t.fLanguage,
+                      icon: 'translate',
+                      color: langStyle.color,
+                      value: langStyle.label,
+                    },
+                  ].map((m) => (
+                    <div key={m.label} style={{ background: 'white', padding: isMobile ? '16px 18px' : '20px 24px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '14px', fontWeight: 600, color: '#7d8896', marginBottom: '10px' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: m.color }}>{m.icon}</span>
+                        {m.label}
+                      </div>
+                      <div style={{ fontSize: m.value.length > 12 ? '20px' : '24px', fontWeight: 700, color: m.color, letterSpacing: '-0.6px', lineHeight: 1.05, wordBreak: 'break-word' }}>
+                        {m.value}
+                      </div>
+                      {m.sub && <div style={{ fontSize: '12.5px', color: '#8895a3', marginTop: '6px' }}>{m.sub}</div>}
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── Technical details, out of the way until wanted ── */}
+                <div style={{ padding: isMobile ? '0 16px' : '0 24px', borderBottom: `1px solid ${CELL_BORDER}` }}>
+                  <button onClick={() => setShowDetails((s) => !s)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '7px', width: '100%', padding: '13px 0', background: 'none', border: 'none', fontFamily: 'inherit', fontSize: '14px', fontWeight: 600, color: '#5b6775', cursor: 'pointer' }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '19px', transform: showDetails ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s' }}>expand_more</span>
+                    {t.fDetails}
+                  </button>
+
+                  {showDetails && (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                        gap: '0 140px',
+                        paddingBottom: '16px',
+                        background: isMobile
+                          ? undefined
+                          : 'linear-gradient(to right, transparent calc(50% - 0.5px), #e2e6eb calc(50% - 0.5px), #e2e6eb calc(50% + 0.5px), transparent calc(50% + 0.5px))',
+                      }}
+                    >{[
+                        ...(pages != null ? [{ label: t.fPages, value: String(pages), icon: 'layers', color: '#0e7490' }] : []),
+                        { label: t.fSize,      value: formatBytes(result.file_size),                        icon: 'hard_drive',  color: '#475569' },
+                        { label: t.fExtension, value: (result.file_extension || '—').replace('.', '').toUpperCase(), icon: fmt.icon, color: fmt.color },
+                        { label: t.fMime,      value: shortMime(result.mime_type, result.file_extension),   icon: 'code',        color: '#1d4ed8' },
+                        { label: t.fCreated,   value: formatDateTime(result.created_at),                    icon: 'play_circle', color: '#0b6b3a' },
+                        { label: t.fFinished,  value: formatDateTime(result.finished_at),                   icon: 'flag_circle', color: '#0b6b3a' },
+                      ].map((r) => (
+                        <div key={r.label} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 0', borderBottom: '1px solid #eef2f6' }}>
+                          <span style={{ width: '32px', height: '32px', borderRadius: '9px', background: `${r.color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '18px', color: r.color }}>{r.icon}</span>
+                          </span>
+                          <span style={{ fontSize: '14px', color: '#6b7784', flexShrink: 0 }}>{r.label}</span>
+                          <span style={{ flex: 1 }} />
+                          <span title={r.value} style={{ fontSize: '14px', fontWeight: 600, color: '#25313d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.value}</span>
+                        </div>
+                      ))}
+                    </div>)}
+                </div>
 
               {/* Extracted text */}
               <div style={{ padding: isMobile ? '16px' : '20px 22px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
-                  <div style={{ fontSize: '15px', fontWeight: 700, color: '#0a3b5c' }}>{t.resultTitle}</div>
+                  <span className="material-symbols-outlined" style={{ fontSize: '19px', color: NAVY }}>article</span>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: NAVY }}>{t.resultTitle}</div>
                   <div style={{ flex: 1 }} />
                   <button onClick={copyText} disabled={!result.extracted_text}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: 'white', border: '1px solid #e5e7eb', borderRadius: '9px', fontSize: '13px', fontWeight: 500, color: result.extracted_text ? '#0a3b5c' : '#cbd5e1', cursor: result.extracted_text ? 'pointer' : 'not-allowed' }}
-                    onMouseEnter={(e) => { if (result.extracted_text) e.currentTarget.style.background = '#f9fafb'; }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: 'white', border: `1px solid ${CELL_BORDER}`, borderRadius: '9px', fontSize: '13px', fontWeight: 600, fontFamily: 'inherit', color: result.extracted_text ? NAVY : '#b6c0ca', cursor: result.extracted_text ? 'pointer' : 'not-allowed' }}
+                    onMouseEnter={(e) => { if (result.extracted_text) e.currentTarget.style.background = '#f6f8fa'; }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; }}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
                     {t.copyText}
                   </button>
                   <button onClick={downloadText} disabled={!result.extracted_text}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: result.extracted_text ? '#0a3b5c' : '#e5e7eb', border: 'none', borderRadius: '9px', fontSize: '13px', fontWeight: 600, color: result.extracted_text ? 'white' : '#9ca3af', cursor: result.extracted_text ? 'pointer' : 'not-allowed' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: result.extracted_text ? NAVY : '#e0e4e8', border: 'none', borderRadius: '9px', fontSize: '13px', fontWeight: 600, fontFamily: 'inherit', color: result.extracted_text ? 'white' : '#98a2ad', cursor: result.extracted_text ? 'pointer' : 'not-allowed' }}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
                     {t.downloadText}
@@ -1160,20 +1286,22 @@ const HomePage: React.FC = () => {
                     maxHeight: '460px',
                     overflow: 'auto',
                     textAlign: 'left',
-                    background: '#fafbfc',
-                    border: '1px solid #eceff2',
-                    borderRadius: '12px',
+                    background: '#fcfdfe',
+                    border: `2px solid ${CELL_BORDER}`,
+                    borderLeft: `4px solid ${NAVY}`,
+                    borderRadius: '10px',
                     fontSize: '13.5px',
-                    lineHeight: 1.7,
-                    color: '#1f2937',
+                    lineHeight: 1.75,
+                    color: '#16212c',
                     fontFamily: '"SF Mono","Fira Mono",Consolas,monospace',
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
+                    boxShadow: 'inset 0 2px 6px rgba(10,40,70,0.05)',
                   }}>
                     {result.extracted_text}
                   </pre>
                 ) : (
-                  <div style={{ padding: '28px', textAlign: 'center', background: '#fafbfc', border: '1px solid #eceff2', borderRadius: '12px', color: '#94a3b8', fontSize: '14px' }}>
+                  <div style={{ padding: '28px', textAlign: 'center', background: '#fcfdfe', border: `2px dashed ${CELL_BORDER}`, borderRadius: '10px', color: '#8695a4', fontSize: '14px' }}>
                     {t.noText}
                   </div>
                 )}
@@ -1190,8 +1318,7 @@ const HomePage: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
               <img src={CbuLogo} alt="CBU" style={{ width: '44px', height: '44px', objectFit: 'contain', background: 'white', borderRadius: '8px', padding: '4px', flexShrink: 0 }} />
               <div>
-                <div style={{ color: '#f5d068', fontWeight: 700, fontSize: '20px', lineHeight: 1 }}>OCR</div>
-                <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '12px', marginTop: '3px', letterSpacing: '1px' }}>CBU Platform</div>
+                <div style={{ color: '#f5d068', fontWeight: 700, fontSize: '18px', lineHeight: 1 }}>{t.appName}</div>
               </div>
             </div>
             <p style={{ fontSize: '15px', lineHeight: 1.75, color: '#6b8499', marginBottom: '20px' }}>{t.officialDesc}</p>
@@ -1199,10 +1326,10 @@ const HomePage: React.FC = () => {
               {[
                 { src: facebook,  alt: 'Facebook',  href: 'https://www.facebook.com/centralbankuzbekistan/', width: '34px', height: '34px' },
                 { src: telegram,  alt: 'Telegram',  href: 'https://t.me/centralbankuzbekistan',              width: '38px', height: '38px' },
-                { src: linkedin,  alt: 'LinkedIn',  href: 'https://www.linkedin.com/company/centralbankuzbekistan/', width: '40px', height: '40px' },
-                { src: twitter,   alt: 'Twitter',   href: 'https://x.com/cbuzbekistan',                      width: '44px', height: '44px' },
-                { src: instagram, alt: 'Instagram', href: 'https://www.instagram.com/centralbankuzbekistan', width: '30px', height: '30px' },
-                { src: youtube,   alt: 'YouTube',   href: 'https://www.youtube.com/centralbankofuzbekistan', width: '32px', height: '32px' },
+                { src: linkedin,  alt: 'LinkedIn',  href: 'https://www.linkedin.com/company/centralbankuzbekistan/', width: '44px', height: '44px' },
+                { src: twitter,   alt: 'Twitter',   href: 'https://x.com/cbuzbekistan',                      width: '46px', height: '46px' },
+                { src: instagram, alt: 'Instagram', href: 'https://www.instagram.com/centralbankuzbekistan', width: '32px', height: '32px' },
+                { src: youtube,   alt: 'YouTube',   href: 'https://www.youtube.com/centralbankofuzbekistan', width: '35px', height: '35px' },
               ].map((s) => (
                 <a key={s.alt} href={s.href} target="_blank" rel="noopener noreferrer"
                   style={{ width: '36px', height: '36px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.07)', transition: 'background 0.2s, transform 0.15s' }}
@@ -1318,8 +1445,9 @@ const HomePage: React.FC = () => {
         @keyframes modalIn { from{opacity:0;transform:scale(0.93);} to{opacity:1;transform:scale(1);} }
         nav::-webkit-scrollbar { height:0; }
         pre::-webkit-scrollbar { width:10px; height:10px; }
-        pre::-webkit-scrollbar-thumb { background:#d7dde3; border-radius:6px; }
+        pre::-webkit-scrollbar-thumb { background:#b9c4d0; border-radius:6px; }
         pre::-webkit-scrollbar-track { background:transparent; }
+        button:focus-visible { outline:2px solid ${GOLD}; outline-offset:2px; }
       `}</style>
     </div>
   );

@@ -41,7 +41,7 @@ from utils.database import (init_db_pool, close_db_pool,
                             get_all_internal_ocr_data, get_single_internal_ocr_data, delete_single_internal_ocr_data,
                             add_internal_ocr_data, update_internal_ocr_data, update_internal_ocr_status,
                             check_internal_ocr_file_hash_existence,
-                            get_user_internal_ocr_data,
+                            get_all_user_internal_ocr_data, # get_single_user_internal_ocr_data,
                             recover_interrupted_external_ocr, recover_interrupted_internal_ocr)
 from utils.ocr_set import (initialize_paddle_ocr, initialize_docling, pdf_is_selectable,
                            extract_docx_text, extract_single_page, extract_multi_page)
@@ -967,7 +967,7 @@ async def ocr_external_files_api(input_file: UploadFile, request: Request):
     # ------------------------------------------------------------------------------------------------------------------
     unique_job_id = str(uuid4().hex)
     created_at = datetime.now(tz)
-    filename = f'filename_{unique_job_id}'
+    filename = f'file_{unique_job_id}'
     await add_external_ocr_data(request_ip_address=client_ip, unique_job_id=unique_job_id,
                        file_hash=file_hash, filename=filename,
                        file_extension=ext, mime_type=kind.mime,
@@ -983,7 +983,7 @@ async def ocr_external_files_api(input_file: UploadFile, request: Request):
 
     temp_dir = Path('temp_files/external')
     temp_dir.mkdir(parents=True, exist_ok=True)
-    temp_file_path = temp_dir / f"filename_{unique_job_id}{ext}"
+    temp_file_path = temp_dir / f"file_{unique_job_id}{ext}"
     file_path = str(temp_file_path)
 
 
@@ -1320,7 +1320,7 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
     # ------------------------------------------------------------------------------------------------------------------
     unique_job_id = str(uuid4().hex)
     created_at = datetime.now(tz)
-    filename = f'filename_{unique_job_id}'
+    filename = f'file_{unique_job_id}'
     await add_internal_ocr_data(request_ip_address=ip_address, unique_job_id=unique_job_id,
                        file_hash=file_hash, filename=filename,
                        file_extension=ext, mime_type=kind.mime,
@@ -1334,7 +1334,7 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
 
     temp_dir = Path('temp_files/internal')
     temp_dir.mkdir(parents=True, exist_ok=True)
-    temp_file_path = temp_dir / f"filename_{unique_job_id}{ext}"
+    temp_file_path = temp_dir / f"file_{unique_job_id}{ext}"
     file_path = str(temp_file_path)
 
 
@@ -1470,22 +1470,40 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
 # ocr user internal
 # ----------------------------------------------------------------------------------------------------------------------
 
-@app.get('/api/get_user_internal_ocr_data', tags=["Get All Internal Ocr Data"])
-async def get_user_internal_ocr_data_api(user_session_data = Depends(get_current_user)):
+@app.get('/api/get_all_user_internal_ocr_data', tags=["Get All Internal Ocr Data"])
+async def get_all_user_internal_ocr_data_api(user_session_data = Depends(get_current_user)):
     user = user_session_data['user']
     if not user:
-        logger.warning("get_all_internal_ocr_data | Missing user")
+        logger.warning("get_all_user_internal_ocr_data | Missing user")
         raise HTTPException(status_code=401, detail="Not Authorized!")
 
-    logger.info("get_user_internal_ocr_data | Fetching user internal ocr data")
-    user_internal_ocr_data = await get_user_internal_ocr_data(user_id=user['user_id'])
+    logger.info("get_all_user_internal_ocr_data | Fetching user internal ocr data")
+    user_all_internal_ocr_data = await get_all_user_internal_ocr_data(user_id=user['user_id'])
 
-    if not user_internal_ocr_data:
-        logger.warning("get_user_internal_ocr_data | No internal ocr data found in DB")
-        return {"Status": 'Failed', 'user': user, 'Data': user_internal_ocr_data}
+    if not user_all_internal_ocr_data:
+        logger.warning("get_all_user_internal_ocr_data | No internal ocr data found in DB")
+        return {"Status": 'Failed', 'user': user, 'Data': user_all_internal_ocr_data}
 
-    logger.info("get_user_internal_ocr_data | Returned %d records", len(user_internal_ocr_data))
-    return {"Status": 'Success', 'user': user, 'Data': user_internal_ocr_data}
+    logger.info("get_all_user_internal_ocr_data | Returned %d records", len(user_all_internal_ocr_data))
+    return {"Status": 'Success', 'user': user, 'Data': user_all_internal_ocr_data}
+
+
+# @app.get('/api/get_single_user_internal_ocr_data', tags=["Get All Internal Ocr Data"])
+# async def get_single_user_internal_ocr_data_api(user_session_data = Depends(get_current_user)):
+#     user = user_session_data['user']
+#     if not user:
+#         logger.warning("get_single_user_internal_ocr_data | Missing user")
+#         raise HTTPException(status_code=401, detail="Not Authorized!")
+#
+#     logger.info("get_single_user_internal_ocr_data | Fetching user single internal ocr data")
+#     user_internal_ocr_data = await get_single_user_internal_ocr_data(user_id=user['user_id'])
+#
+#     if not user_internal_ocr_data:
+#         logger.warning("get_single_user_internal_ocr_data | No internal ocr data found in DB")
+#         return {"Status": 'Failed', 'user': user, 'Data': user_internal_ocr_data}
+#
+#     logger.info("get_single_user_internal_ocr_data | Returned %d records", len(user_internal_ocr_data))
+#     return {"Status": 'Success', 'user': user, 'Data': user_internal_ocr_data}
 
 
 class InternalOcrDeleteData(BaseModel):

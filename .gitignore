@@ -13,6 +13,7 @@ env/
 
 *.sqlite3
 *.log
+*.log.*
 
 data/output_data/
 
