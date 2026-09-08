@@ -22,7 +22,7 @@ from pathlib import Path
 #         device="cpu",
 #     )
 
-def intialize_paddle_ocr():
+def initialize_paddle_ocr():
     pipeline = PaddleOCRVL(
         pipeline_version="v1.6",
         vl_rec_backend="vllm-server",        # ← this
