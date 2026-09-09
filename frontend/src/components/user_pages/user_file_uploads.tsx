@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import CbuLogo   from '../assets/CBU_Logo.png';
-import facebook  from '../assets/facebook.png';
-import telegram  from '../assets/telegram.png';
-import linkedin  from '../assets/linkedin.png';
-import twitter   from '../assets/twitter.png';
-import instagram from '../assets/instagram.png';
-import youtube   from '../assets/youtube.png';
+import CbuLogo   from '../..//assets/CBU_Logo.png';
+import facebook  from '../../assets/facebook.png';
+import telegram  from '../../assets/telegram.png';
+import linkedin  from '../../assets/linkedin.png';
+import twitter   from '../../assets/twitter.png';
+import instagram from '../../assets/instagram.png';
+import youtube   from '../../assets/youtube.png';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
