@@ -7,13 +7,13 @@ from pathlib import Path
 
 
 
-# def initialize_paddle_ocr():
-#     pipeline = PaddleOCRVL(
-#         pipeline_version="v1.6",
-#         device="gpu",
-#     )
-#
-#     return pipeline
+def initialize_paddle_ocr():
+    pipeline = PaddleOCRVL(
+        pipeline_version="v1.6",
+        device="gpu",
+    )
+
+    return pipeline
 
 
 # def initialize_paddle_ocr():
@@ -22,15 +22,15 @@ from pathlib import Path
 #         device="cpu",
 #     )
 
-def initialize_paddle_ocr():
-    pipeline = PaddleOCRVL(
-        pipeline_version="v1.6",
-        vl_rec_backend="vllm-server",        # ← this
-        vl_rec_server_url="http://127.0.0.1:8118/v1",
-        vl_rec_max_concurrency=32,
-    )
-
-    return pipeline
+# def initialize_paddle_ocr():
+#     pipeline = PaddleOCRVL(
+#         pipeline_version="v1.6",
+#         vl_rec_backend="vllm-server",        # ← this
+#         vl_rec_server_url="http://127.0.0.1:8118/v1",
+#         vl_rec_max_concurrency=32,
+#     )
+#
+#     return pipeline
 
 def initialize_docling():
     """
