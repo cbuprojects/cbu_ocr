@@ -6,7 +6,7 @@ import LoginPage from './components/login';
 // ── User pages ──
 import HomePage from './components/home';
 // import UploadPage    from './components/user_pages/upload';
-// import MyUploadsPage from './components/user_pages/my_uploads';
+import MyUploadsPage from './components/user_pages/user_file_uploads';
 
 // ── Admin: OCR monitoring ──
 // import InternalUploadsPage  from './components/admin_pages/internal_uploads';
