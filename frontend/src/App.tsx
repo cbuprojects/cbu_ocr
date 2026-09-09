@@ -84,8 +84,10 @@ const App = () => {
         {/* User: upload a file + own OCR history */}
         {/*
         <Route path="/upload"     element={<ProtectedRoute><UploadPage />    </ProtectedRoute>} />
-        <Route path="/my_uploads" element={<ProtectedRoute><MyUploadsPage /> </ProtectedRoute>} />
         */}
+        <Route path="/my_uploads" element={<ProtectedRoute><MyUploadsPage /> </ProtectedRoute>} />
+
+
 
         {/* Admin: OCR monitoring */}
         {/*
