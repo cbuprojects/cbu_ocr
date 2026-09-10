@@ -58,8 +58,9 @@ const NAVY = '#0a3b5c';
 const CELL_BORDER = '#cfd8e1';
 
 const NAV_ITEMS = [
-  { path: '/',           labelKey: 'navUpload'      as const, icon: 'document_scanner' },
-  { path: '/my_uploads', labelKey: 'navFileUploads' as const, icon: 'query_stats' },
+  { path: '/',                   labelKey: 'navUpload'      as const, icon: 'document_scanner' },
+  { path: '/my_uploads',         labelKey: 'navFileUploads' as const, icon: 'folder_open' },
+  { path: '/my_uploads_stats',   labelKey: 'navStats'       as const, icon: 'query_stats' },
 ] as const;
 
 const ADMIN_LINKS = [

@@ -5,8 +5,9 @@ import LoginPage from './components/login';
 
 // ── User pages ──
 import HomePage from './components/home';
-// import UploadPage    from './components/user_pages/upload';
 import MyUploadsPage from './components/user_pages/user_file_uploads';
+import MyStatsPage    from './components/user_pages/user_file_uploads_stats';
+
 
 // ── Admin: OCR monitoring ──
 // import InternalUploadsPage  from './components/admin_pages/internal_uploads';
@@ -82,11 +83,8 @@ const App = () => {
         />
 
         {/* User: upload a file + own OCR history */}
-        {/*
-        <Route path="/upload"     element={<ProtectedRoute><UploadPage />    </ProtectedRoute>} />
-        */}
         <Route path="/my_uploads" element={<ProtectedRoute><MyUploadsPage /> </ProtectedRoute>} />
-
+        <Route path="/my_uploads_stats" element={<ProtectedRoute><MyStatsPage /> </ProtectedRoute>} />
 
 
         {/* Admin: OCR monitoring */}

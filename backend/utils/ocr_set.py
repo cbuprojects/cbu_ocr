@@ -7,20 +7,20 @@ from pathlib import Path
 
 
 
-def initialize_paddle_ocr():
-    pipeline = PaddleOCRVL(
-        pipeline_version="v1.6",
-        device="gpu",
-    )
-
-    return pipeline
-
-
 # def initialize_paddle_ocr():
-#     return PaddleOCR(
-#         lang="en",
-#         device="cpu",
+#     pipeline = PaddleOCRVL(
+#         pipeline_version="v1.6",
+#         device="gpu",
 #     )
+#
+#     return pipeline
+
+
+def initialize_paddle_ocr():
+    return PaddleOCR(
+        lang="en",
+        device="cpu",
+    )
 
 # def initialize_paddle_ocr():
 #     pipeline = PaddleOCRVL(

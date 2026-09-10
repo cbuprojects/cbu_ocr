@@ -1116,7 +1116,7 @@ async def ocr_external_files_api(input_file: UploadFile, request: Request):
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-# ocr all internal
+# internal ocr
 # ----------------------------------------------------------------------------------------------------------------------
 
 @app.get('/api/get_all_internal_ocr_data', tags=["Get All Internal Ocr Data"])
@@ -1184,6 +1184,12 @@ async def delete_internal_ocr_data_api(data: InternalOcrDeleteData, user_session
         logger.error("delete_internal_ocr_data | Failed to delete unique_job_id=%s, error=%s", data.unique_job_id, e)
         raise HTTPException(status_code=404, detail="Could not delete the internal unique_job_id!")
 
+
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# internal ocr - home page
+# ----------------------------------------------------------------------------------------------------------------------
 
 @app.post('/api/internal/ocr_files/', tags=["OCR Internal Files"])
 async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Depends(get_current_user)):
@@ -1489,9 +1495,18 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
     }
 
 
+@app.get('/api/get_single_user_internal_ocr_data', tags=["Get Single Internal Ocr Data"])
+async def get_single_user_internal_ocr_data_api(user_session = Depends(get_current_user)):
+    logger.info("get_single_user_internal_ocr_data | username=%s", user_session['user']['username'])
+    if not user_session['user']:
+        logger.warning("get_single_user_internal_ocr_data | Missing user")
+        raise HTTPException(status_code=404, detail="Could not get single user internal ocr status!")
+    return {'status': 'Success', 'user': user_session['user']}
+
+
 
 # ----------------------------------------------------------------------------------------------------------------------
-# ocr user internal
+# internal ocr uploads - user_file_uploads page
 # ----------------------------------------------------------------------------------------------------------------------
 
 @app.get('/api/get_all_user_internal_ocr_data', tags=["Get All Internal Ocr Data"])
@@ -1531,15 +1546,6 @@ async def get_extracted_text_user_internal_ocr_data_api(unique_job_id: str, user
 
     logger.info("get_extracted_text_user_internal_ocr_data | Returned %d records", len(user_extracted_text_internal_ocr_data))
     return {"Status": 'Success', 'user': user, 'Data': user_extracted_text_internal_ocr_data}
-
-
-@app.get('/api/get_single_user_internal_ocr_data', tags=["Get Single Internal Ocr Data"])
-async def get_single_user_internal_ocr_data_api(user_session = Depends(get_current_user)):
-    logger.info("get_single_user_internal_ocr_data | username=%s", user_session['user']['username'])
-    if not user_session['user']:
-        logger.warning("get_single_user_internal_ocr_data | Missing user")
-        raise HTTPException(status_code=404, detail="Could not get single user internal ocr status!")
-    return {'status': 'Success', 'user': user_session['user']}
 
 
 class InternalOcrDeleteData(BaseModel):
@@ -1687,6 +1693,118 @@ async def get_ocr_status_check_api(user_session_data = Depends(get_current_user)
 
 
 
+
+# ----------------------------------------------------------------------------------------------------------------------
+# ocr internal user stats
+# ----------------------------------------------------------------------------------------------------------------------
+
+@app.get('/api/get_ocr_internal_user_stats', tags=["OCR Internal User Stats"])
+async def get_ocr_internal_user_stats_api(user_session_data = Depends(get_current_user)):
+    user = user_session_data['user']
+    if not user:
+        logger.warning("get_ocr_internal_user_stats | Missing user")
+        raise HTTPException(status_code=401, detail="Not Authorized!")
+
+    logger.info("get_ocr_internal_user_stats | Fetching user internal ocr data")
+    user_all_internal_ocr_data = await get_all_user_internal_ocr_data(user_id=user['user_id'])
+
+    if not user_all_internal_ocr_data:
+        logger.warning("get_ocr_internal_user_stats | No internal ocr data found in DB")
+        return {"Status": 'Failed', 'user': user, 'Data': user_all_internal_ocr_data}
+
+    logger.info("get_ocr_internal_user_stats | Returned %d records", len(user_all_internal_ocr_data))
+    return {"Status": 'Success', 'user': user, 'Data': user_all_internal_ocr_data}
+
+
+
+
+
+
+
+
+
+
+
+
+{
+  "Status": "Success",
+  "Data": {
+
+    "filters_applied": {
+      "period": "30d",
+      "from": "2026-08-08T00:00:00+05:00",
+      "to": "2026-09-06T19:40:11+05:00",
+      "bucket": "day",
+      "method": "all", "file_type": "all",
+      "language": "all", "status": "all"
+    },
+    "generated_at": "2026-09-06T19:40:11+05:00",
+
+    // 5 KPI cards
+    "kpi": {
+      "total_requests": 12458,
+      "successful": 12056,
+      "not_successful": 402,
+      "success_rate": 0.9677,
+      "pages": 84291,
+      "characters": 42800000,
+      "median_duration": 2.9,
+      "p95_duration": 11.4,
+      "requests_previous_period": 11492
+    },
+
+    // 3 line charts: requests / pages / characters over time
+    "timeline": [
+      { "at": "2026-08-08T00:00:00+05:00", "requests": 384, "pages": 2610, "characters": 1320400 }
+    ],
+
+    // Status distribution
+    "by_status": [
+      { "status": "success", "count": 12056 }
+    ],
+
+    // PaddleOCR vs Docling pie
+    "by_method": [
+      { "method": "paddle", "requests": 7400, "pages": 61200, "characters": 28900000,
+        "avg_duration": 3.8, "median_duration": 3.1, "success_rate": 0.9512 }
+    ],
+
+    // File type by engine (stacked)
+    "by_file_type_method": [
+      { "file_extension": ".pdf", "method": "docling", "requests": 3692 }
+    ],
+
+    // Language distribution
+    "by_language": [
+      { "language": "uz_l", "requests": 5812, "characters": 19400000 }
+    ],
+
+    // PDF extraction mode donut
+    "pdf_extraction": { "embedded_text": 3692, "required_ocr": 1508 },
+
+    // Processing time distribution — always these 6, in this order
+    "duration_buckets": [
+      { "bucket": "<1s", "count": 3894 },
+      { "bucket": "1-5s", "count": 6240 },
+      { "bucket": "5-10s", "count": 1932 },
+      { "bucket": "10-30s", "count": 874 },
+      { "bucket": "30-60s", "count": 312 },
+      { "bucket": ">60s", "count": 88 }
+    ],
+
+    // Duration against page count scatter — max 2000 points
+    "pages_vs_duration": [
+      { "pages": 12, "duration": 8.4, "method": "paddle" }
+    ],
+
+    // Needs attention — max 40, newest first
+    "problems": [
+      { "source": "internal", "unique_job_id": "9c41ab…", "filename": "filename_9c41ab…",
+        "file_extension": ".pdf", "page_count": 18, "status": "timeout",
+        "created_at": "2026-09-05T14:22:00+05:00", "duration": 604.2 }
+    ]
+  }
+}
 
 
 
