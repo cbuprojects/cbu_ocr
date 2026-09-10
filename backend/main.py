@@ -1419,7 +1419,7 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
         elapsed = Decimal(str(round((failed_at - created_at).total_seconds(), 2)))
         internal_logger.exception("❌ failed | job=%s | user=%s | ext=%s | after=%ss | %s",
                                   unique_job_id, username, ext, elapsed, e)
-        await update_internal_ocr_data(unique_job_id=unique_job_id, page_count=page_number, language=None,
+        await update_internal_ocr_data(unique_job_id=unique_job_id, page_count=page_number, language=None, method=method,
                                        status='failed', extracted_text=None, extracted_text_length=0,
                                         duration=elapsed, finished_at=failed_at)
         await add_action_data(user_id=user['user_id'], unique_job_id=unique_job_id,
@@ -1447,7 +1447,7 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
                               action='Uploaded OCR file > No Text', action_status="failed",
                               created_at=datetime.now(tz))
         await update_internal_ocr_data(unique_job_id=unique_job_id, page_count=page_number,
-                                       language=None, status='failed', extracted_text=None,
+                                       language=None,  method=method, status='failed', extracted_text=None,
                                        extracted_text_length=0, duration=duration,
                                        finished_at=finished_at)
         raise HTTPException(500, "Extraction produced no text")
