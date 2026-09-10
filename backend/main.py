@@ -1406,7 +1406,7 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
         elapsed = Decimal(str(round((failed_at - created_at).total_seconds(), 2)))
         internal_logger.error("⏱️  timeout | job=%s | user=%s | ext=%s | pages=%d | after=%ss",
                               unique_job_id, username, ext, page_number, elapsed)
-        await update_internal_ocr_data( unique_job_id=unique_job_id, page_count=page_number, language=None,
+        await update_internal_ocr_data( unique_job_id=unique_job_id, page_count=page_number, language=None, method=method,
                                         status='timeout', extracted_text=None, extracted_text_length=0,
                                         duration=elapsed, finished_at=failed_at)
         await add_action_data(user_id=user['user_id'], unique_job_id=unique_job_id,
@@ -1457,7 +1457,7 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
     # ------------------------------------------------------------------------------------------------------------------
     language = detect_language(text=final_text)
 
-    await update_internal_ocr_data(unique_job_id=unique_job_id, page_count=page_number, language=language,
+    await update_internal_ocr_data(unique_job_id=unique_job_id, page_count=page_number, language=language, method=method,
                           status='success', extracted_text=final_text, extracted_text_length=len(final_text),
                           duration=duration, finished_at=finished_at)
 
