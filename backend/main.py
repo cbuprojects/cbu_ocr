@@ -41,7 +41,7 @@ from utils.database import (init_db_pool, close_db_pool,
                             get_all_internal_ocr_data, get_single_internal_ocr_data, delete_single_internal_ocr_data,
                             add_internal_ocr_data, update_internal_ocr_data, update_internal_ocr_status,
                             check_internal_ocr_file_hash_existence,
-                            get_all_user_internal_ocr_data, # get_single_user_internal_ocr_data,
+                            get_all_user_internal_ocr_data, get_single_internal_user_extracted_text_ocr_data,
                             recover_interrupted_external_ocr, recover_interrupted_internal_ocr)
 from utils.ocr_set import (initialize_paddle_ocr, initialize_docling, pdf_is_selectable,
                            extract_docx_text, extract_single_page, extract_multi_page)
@@ -1286,6 +1286,8 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
     # ------------------------------------------------------------------------------------------------------------------
     # File hash check
     # ------------------------------------------------------------------------------------------------------------------
+    unique_job_id = str(uuid4().hex)
+
     file_hash = hashlib.sha256(file_content).hexdigest()
     if ext == '.pdf':
         reader = PdfReader(io.BytesIO(file_content))
@@ -1295,6 +1297,10 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
 
     file_data_existence = await check_internal_ocr_file_hash_existence(file_hash)
     if file_data_existence:
+        await add_action_data(user_id=user['user_id'], unique_job_id=unique_job_id,
+                              session_id=user_session_data["session_id"], ip_address=ip_address,
+                              action='Uploaded OCR file & Returned existing file', action_status="success", created_at=datetime.now(tz))
+
         internal_logger.info("♻️  cache hit | user=%s | hash=%s | job=%s", username, file_hash[:12], file_data_existence['unique_job_id'])
         return {
             'status': "Success",
@@ -1318,9 +1324,9 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
     # ------------------------------------------------------------------------------------------------------------------
     # New File
     # ------------------------------------------------------------------------------------------------------------------
-    unique_job_id = str(uuid4().hex)
-    created_at = datetime.now(tz)
     filename = f'file_{unique_job_id}'
+    created_at = datetime.now(tz)
+
     await add_internal_ocr_data(request_ip_address=ip_address, unique_job_id=unique_job_id,
                        file_hash=file_hash, filename=filename,
                        file_extension=ext, mime_type=kind.mime,
@@ -1403,6 +1409,10 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
         await update_internal_ocr_data( unique_job_id=unique_job_id, page_count=page_number, language=None,
                                         status='timeout', extracted_text=None, extracted_text_length=0,
                                         duration=elapsed, finished_at=failed_at)
+        await add_action_data(user_id=user['user_id'], unique_job_id=unique_job_id,
+                              session_id=user_session_data["session_id"], ip_address=ip_address,
+                              action='Uploaded OCR file > Timeout', action_status="failed",
+                              created_at=created_at)
         raise HTTPException(504, "Extraction timed out")
     except Exception as e:
         failed_at = datetime.now(tz)
@@ -1412,6 +1422,10 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
         await update_internal_ocr_data(unique_job_id=unique_job_id, page_count=page_number, language=None,
                                        status='failed', extracted_text=None, extracted_text_length=0,
                                         duration=elapsed, finished_at=failed_at)
+        await add_action_data(user_id=user['user_id'], unique_job_id=unique_job_id,
+                              session_id=user_session_data["session_id"], ip_address=ip_address,
+                              action='Uploaded OCR file > Error', action_status="failed",
+                              created_at=created_at)
         raise HTTPException(500, f"Extraction failed: {e}")
     finally:
         if method == 'paddle':
@@ -1426,7 +1440,12 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
     finished_at = datetime.now(tz)
     duration = Decimal(str(round((finished_at - created_at).total_seconds(), 2)))
 
+
     if not final_text:
+        await add_action_data(user_id=user['user_id'], unique_job_id=unique_job_id,
+                              session_id=user_session_data["session_id"], ip_address=ip_address,
+                              action='Uploaded OCR file > No Text', action_status="failed",
+                              created_at=datetime.now(tz))
         await update_internal_ocr_data(unique_job_id=unique_job_id, page_count=page_number,
                                        language=None, status='failed', extracted_text=None,
                                        extracted_text_length=0, duration=duration,
@@ -1441,6 +1460,11 @@ async def ocr_internal_files_api(input_file: UploadFile, user_session_data = Dep
     await update_internal_ocr_data(unique_job_id=unique_job_id, page_count=page_number, language=language,
                           status='success', extracted_text=final_text, extracted_text_length=len(final_text),
                           duration=duration, finished_at=finished_at)
+
+    await add_action_data(user_id=user['user_id'], unique_job_id=unique_job_id,
+                          session_id=user_session_data["session_id"], ip_address=ip_address,
+                          action='Uploaded OCR file > Success', action_status="success",
+                          created_at=datetime.now(tz))
 
     internal_logger.info("✅ success | job=%s | user=%s | method=%s | lang=%s | pages=%d | chars=%d | %ss (%.2fs/page)",
                          unique_job_id, username, method, language, page_number, len(final_text),
@@ -1486,6 +1510,27 @@ async def get_all_user_internal_ocr_data_api(user_session_data = Depends(get_cur
 
     logger.info("get_all_user_internal_ocr_data | Returned %d records", len(user_all_internal_ocr_data))
     return {"Status": 'Success', 'user': user, 'Data': user_all_internal_ocr_data}
+
+
+@app.get('/api/get_extracted_text_user_internal_ocr_data', tags=["Get Extracted Text OCR Internal Data "])
+async def get_extracted_text_user_internal_ocr_data_api(unique_job_id: str, user_session_data = Depends(get_current_user)):
+    user = user_session_data['user']
+    if not user:
+        logger.warning("get_extracted_text_user_internal_ocr_data | Missing user")
+        raise HTTPException(status_code=401, detail="Not Authorized!")
+
+    if not unique_job_id:
+        logger.warning("get_extracted_text_user_internal_ocr_data | Data is has no values!")
+        raise HTTPException(status_code=404, detail="Data is has no values!")
+
+    logger.info("get_extracted_text_user_internal_ocr_data | Fetching user internal ocr data")
+    user_extracted_text_internal_ocr_data = await get_single_internal_user_extracted_text_ocr_data(user_id=user['user_id'], unique_job_id=unique_job_id)
+    if not user_extracted_text_internal_ocr_data:
+        logger.warning("get_extracted_text_user_internal_ocr_data | No internal ocr data found in DB")
+        return {"Status": 'Failed', 'user': user, 'Data': user_extracted_text_internal_ocr_data}
+
+    logger.info("get_extracted_text_user_internal_ocr_data | Returned %d records", len(user_extracted_text_internal_ocr_data))
+    return {"Status": 'Success', 'user': user, 'Data': user_extracted_text_internal_ocr_data}
 
 
 @app.get('/api/get_single_user_internal_ocr_data', tags=["Get Single Internal Ocr Data"])

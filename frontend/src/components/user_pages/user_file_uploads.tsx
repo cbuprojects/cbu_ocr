@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import CbuLogo   from '../..//assets/CBU_Logo.png';
-import facebook  from '../../assets/facebook.png';
-import telegram  from '../../assets/telegram.png';
-import linkedin  from '../../assets/linkedin.png';
-import twitter   from '../../assets/twitter.png';
-import instagram from '../../assets/instagram.png';
-import youtube   from '../../assets/youtube.png';
+import CbuLogo   from '../assets/CBU_Logo.png';
+import facebook  from '../assets/facebook.png';
+import telegram  from '../assets/telegram.png';
+import linkedin  from '../assets/linkedin.png';
+import twitter   from '../assets/twitter.png';
+import instagram from '../assets/instagram.png';
+import youtube   from '../assets/youtube.png';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -57,9 +57,6 @@ const GOLD = '#e9b741';
 const NAVY = '#0a3b5c';
 const CELL_BORDER = '#cfd8e1';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Navigation — identical to the extraction page so the two feel like one app
-// ─────────────────────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
   { path: '/',           labelKey: 'navUpload'      as const, icon: 'document_scanner' },
   { path: '/my_uploads', labelKey: 'navFileUploads' as const, icon: 'query_stats' },
@@ -100,47 +97,25 @@ const TRANSLATIONS = {
     bankName: 'Central Bank of Uzbekistan',
     deptSubtitle: 'Optical Character Recognition & Extraction Platform',
     appName: 'OCR',
-    navUpload: 'Text Extraction',
-    navFileUploads: 'File Uploads',
-    navInternalAll: 'All Internal Jobs',
-    navExternalAll: 'External API Jobs',
-    navOcrStatus: 'Engine Status',
-    usersBtn: 'Users',
-    sessionsBtn: 'Sessions',
-    actionsBtn: 'Actions',
-    administration: 'Administration',
-    signOut: 'Sign Out',
+    navUpload: 'Text Extraction', navFileUploads: 'File Uploads',
+    navInternalAll: 'All Internal Jobs', navExternalAll: 'External API Jobs', navOcrStatus: 'Engine Status',
+    usersBtn: 'Users', sessionsBtn: 'Sessions', actionsBtn: 'Actions',
+    administration: 'Administration', signOut: 'Sign Out',
 
     pageTitle: 'File Uploads',
     pageDesc: 'Every document you have sent through the OCR service.',
-    refresh: 'Refresh',
-    newUpload: 'New extraction',
+    refresh: 'Refresh', newUpload: 'New extraction',
 
-    statTotal: 'Total uploads',
-    statSuccess: 'Successful',
-    statProblems: 'Need attention',
-    statChars: 'Characters extracted',
+    statTotal: 'Total uploads', statSuccess: 'Successful',
+    statProblems: 'Need attention', statChars: 'Characters extracted',
 
-    colNum: '#',
-    colJob: 'JOB ID',
-    colFile: 'FILE',
-    colStatus: 'STATUS',
-    colPages: 'PAGES',
-    colChars: 'CHARACTERS',
-    colLang: 'LANGUAGE',
-    colDuration: 'DURATION',
-    colCreated: 'STARTED',
-    colFinished: 'FINISHED',
+    colNum: '#', colFilename: 'FILENAME', colType: 'TYPE', colPages: 'PAGES',
+    colLang: 'LANGUAGE', colChars: 'CHARACTERS', colStatus: 'STATUS',
+    colDuration: 'DURATION', colCreated: 'CREATED AT', colFinished: 'FINISHED AT',
     colActions: 'ACTIONS',
 
-    searchJob: 'Search by job ID…',
-    allTypes: 'All file types',
-    allStatuses: 'All statuses',
-    allLanguages: 'All languages',
-    clearFilters: 'Clear filters',
-    activeFilters: 'Active filters:',
-    fType: 'Type', fStatus: 'Status', fLang: 'Language', fDate: 'Date', fJob: 'Job ID',
-    results: (n: number) => `${n} result${n !== 1 ? 's' : ''}`,
+    phSearch: 'Search…', phMin: 'min', phMax: 'max', all: 'All',
+    clearFilters: 'Clear filters', results: (n: number) => `${n} of`,
 
     loading: 'Loading your uploads…',
     failedLoad: 'Could not load your uploads.',
@@ -148,26 +123,22 @@ const TRANSLATIONS = {
     noDataFiltered: 'Nothing matches these filters',
     noDataHint: 'Extract text from a document and it will appear here.',
 
-    view: 'View text',
-    deleteBtn: 'Delete',
+    view: 'View', deleteBtn: 'Delete',
     viewTitle: 'Extracted text',
-    close: 'Close',
-    copyText: 'Copy text',
-    copied: 'Text copied.',
+    loadingText: 'Loading text…',
+    textFailed: 'Could not load the text.',
+    copyText: 'Copy', copied: 'Text copied.',
     downloadText: 'Download .txt',
     noText: 'This job produced no text.',
 
     deleteTitle: 'Delete this record',
     deleteConfirm: 'The stored text and metadata for this job will be removed.',
     deleteWarning: 'This cannot be undone.',
-    cancel: 'Cancel',
-    deleting: 'Deleting…',
-    deletedSuccess: 'Record deleted.',
-    deleteFailed: 'Could not delete the record.',
+    cancel: 'Cancel', deleting: 'Deleting…',
+    deletedSuccess: 'Record deleted.', deleteFailed: 'Could not delete the record.',
 
     showing: (a: number, b: number, n: number) => `Showing ${a}–${b} of ${n}`,
-    previous: 'Previous',
-    next: 'Next',
+    previous: 'Previous', next: 'Next',
 
     stSuccess: 'Success', stFailed: 'Failed', stTimeout: 'Timed out',
     stProcessing: 'Processing', stInterrupted: 'Interrupted',
@@ -191,47 +162,25 @@ const TRANSLATIONS = {
     bankName: 'Центральный Банк Республики Узбекистан',
     deptSubtitle: 'Платформа распознавания и извлечения текста',
     appName: 'OCR',
-    navUpload: 'Извлечение текста',
-    navFileUploads: 'Загрузки файлов',
-    navInternalAll: 'Все внутренние задания',
-    navExternalAll: 'Задания внешнего API',
-    navOcrStatus: 'Состояние движков',
-    usersBtn: 'Пользователи',
-    sessionsBtn: 'Сессии',
-    actionsBtn: 'Действия',
-    administration: 'Администрирование',
-    signOut: 'Выйти',
+    navUpload: 'Извлечение текста', navFileUploads: 'Загрузки файлов',
+    navInternalAll: 'Все внутренние задания', navExternalAll: 'Задания внешнего API', navOcrStatus: 'Состояние движков',
+    usersBtn: 'Пользователи', sessionsBtn: 'Сессии', actionsBtn: 'Действия',
+    administration: 'Администрирование', signOut: 'Выйти',
 
     pageTitle: 'Загрузки файлов',
     pageDesc: 'Все документы, отправленные вами в сервис OCR.',
-    refresh: 'Обновить',
-    newUpload: 'Новое извлечение',
+    refresh: 'Обновить', newUpload: 'Новое извлечение',
 
-    statTotal: 'Всего загрузок',
-    statSuccess: 'Успешно',
-    statProblems: 'Требуют внимания',
-    statChars: 'Извлечено символов',
+    statTotal: 'Всего загрузок', statSuccess: 'Успешно',
+    statProblems: 'Требуют внимания', statChars: 'Извлечено символов',
 
-    colNum: '#',
-    colJob: 'ID ЗАДАНИЯ',
-    colFile: 'ФАЙЛ',
-    colStatus: 'СТАТУС',
-    colPages: 'СТРАНИЦ',
-    colChars: 'СИМВОЛОВ',
-    colLang: 'ЯЗЫК',
-    colDuration: 'ДЛИТЕЛЬНОСТЬ',
-    colCreated: 'НАЧАТО',
-    colFinished: 'ЗАВЕРШЕНО',
+    colNum: '#', colFilename: 'ИМЯ ФАЙЛА', colType: 'ТИП', colPages: 'СТРАНИЦ',
+    colLang: 'ЯЗЫК', colChars: 'СИМВОЛОВ', colStatus: 'СТАТУС',
+    colDuration: 'ДЛИТЕЛЬНОСТЬ', colCreated: 'СОЗДАНО', colFinished: 'ЗАВЕРШЕНО',
     colActions: 'ДЕЙСТВИЯ',
 
-    searchJob: 'Поиск по ID задания…',
-    allTypes: 'Все типы файлов',
-    allStatuses: 'Все статусы',
-    allLanguages: 'Все языки',
-    clearFilters: 'Очистить фильтры',
-    activeFilters: 'Активные фильтры:',
-    fType: 'Тип', fStatus: 'Статус', fLang: 'Язык', fDate: 'Дата', fJob: 'ID задания',
-    results: (n: number) => `${n} ${n === 1 ? 'результат' : n < 5 ? 'результата' : 'результатов'}`,
+    phSearch: 'Поиск…', phMin: 'мин', phMax: 'макс', all: 'Все',
+    clearFilters: 'Очистить', results: (n: number) => `${n} из`,
 
     loading: 'Загрузка ваших файлов…',
     failedLoad: 'Не удалось загрузить данные.',
@@ -239,26 +188,22 @@ const TRANSLATIONS = {
     noDataFiltered: 'Ничего не найдено по этим фильтрам',
     noDataHint: 'Извлеките текст из документа, и он появится здесь.',
 
-    view: 'Показать текст',
-    deleteBtn: 'Удалить',
+    view: 'Показать', deleteBtn: 'Удалить',
     viewTitle: 'Извлечённый текст',
-    close: 'Закрыть',
-    copyText: 'Копировать текст',
-    copied: 'Текст скопирован.',
+    loadingText: 'Загрузка текста…',
+    textFailed: 'Не удалось загрузить текст.',
+    copyText: 'Копировать', copied: 'Текст скопирован.',
     downloadText: 'Скачать .txt',
     noText: 'Это задание не дало текста.',
 
     deleteTitle: 'Удалить запись',
     deleteConfirm: 'Сохранённый текст и метаданные этого задания будут удалены.',
     deleteWarning: 'Это действие нельзя отменить.',
-    cancel: 'Отмена',
-    deleting: 'Удаление…',
-    deletedSuccess: 'Запись удалена.',
-    deleteFailed: 'Не удалось удалить запись.',
+    cancel: 'Отмена', deleting: 'Удаление…',
+    deletedSuccess: 'Запись удалена.', deleteFailed: 'Не удалось удалить запись.',
 
     showing: (a: number, b: number, n: number) => `Показано ${a}–${b} из ${n}`,
-    previous: 'Назад',
-    next: 'Вперёд',
+    previous: 'Назад', next: 'Вперёд',
 
     stSuccess: 'Успешно', stFailed: 'Ошибка', stTimeout: 'Тайм-аут',
     stProcessing: 'Обработка', stInterrupted: 'Прервано',
@@ -282,74 +227,48 @@ const TRANSLATIONS = {
     bankName: 'Ўзбекистон Республикаси Марказий Банки',
     deptSubtitle: 'Оптик матнни аниқлаш ва экстракция платформаси',
     appName: 'OCR',
-    navUpload: 'Матнни ажратиб олиш',
-    navFileUploads: 'Файл юкламалари',
-    navInternalAll: 'Барча ички ишлар',
-    navExternalAll: 'Ташқи API ишлари',
-    navOcrStatus: 'Двигателлар ҳолати',
-    usersBtn: 'Фойдаланувчилар',
-    sessionsBtn: 'Сессиялар',
-    actionsBtn: 'Ҳаракатлар',
-    administration: 'Администрация',
-    signOut: 'Чиқиш',
+    navUpload: 'Матнни ажратиб олиш', navFileUploads: 'Файл юкламалари',
+    navInternalAll: 'Барча ички ишлар', navExternalAll: 'Ташқи API ишлари', navOcrStatus: 'Двигателлар ҳолати',
+    usersBtn: 'Фойдаланувчилар', sessionsBtn: 'Сессиялар', actionsBtn: 'Ҳаракатлар',
+    administration: 'Администрация', signOut: 'Чиқиш',
 
     pageTitle: 'Файл юкламалари',
     pageDesc: 'Сиз OCR хизматига юборган барча ҳужжатлар.',
-    refresh: 'Янгилаш',
-    newUpload: 'Янги ажратиш',
+    refresh: 'Янгилаш', newUpload: 'Янги ажратиш',
 
-    statTotal: 'Жами юкламалар',
-    statSuccess: 'Муваффақиятли',
-    statProblems: 'Эътибор талаб қилади',
-    statChars: 'Ажратилган белгилар',
+    statTotal: 'Жами юкламалар', statSuccess: 'Муваффақиятли',
+    statProblems: 'Эътибор талаб қилади', statChars: 'Ажратилган белгилар',
 
-    colNum: '#',
-    colJob: 'ВАЗИФА ИД',
-    colFile: 'ФАЙЛ',
-    colStatus: 'ҲОЛАТ',
-    colPages: 'САҲИФАЛАР',
-    colChars: 'БЕЛГИЛАР',
-    colLang: 'ТИЛ',
-    colDuration: 'ДАВОМИЙЛИГИ',
-    colCreated: 'БОШЛАНДИ',
-    colFinished: 'ТУГАДИ',
+    colNum: '#', colFilename: 'ФАЙЛ НОМИ', colType: 'ТУРИ', colPages: 'САҲИФАЛАР',
+    colLang: 'ТИЛ', colChars: 'БЕЛГИЛАР', colStatus: 'ҲОЛАТ',
+    colDuration: 'ДАВОМИЙЛИГИ', colCreated: 'ЯРАТИЛГАН', colFinished: 'ТУГАГАН',
     colActions: 'АМАЛЛАР',
 
-    searchJob: 'Вазифа ИД бўйича қидириш…',
-    allTypes: 'Барча файл турлари',
-    allStatuses: 'Барча ҳолатлар',
-    allLanguages: 'Барча тиллар',
-    clearFilters: 'Фильтрларни тозалаш',
-    activeFilters: 'Фаол фильтрлар:',
-    fType: 'Тури', fStatus: 'Ҳолат', fLang: 'Тил', fDate: 'Сана', fJob: 'Вазифа ИД',
-    results: (n: number) => `${n} та натижа`,
+    phSearch: 'Қидириш…', phMin: 'мин', phMax: 'макс', all: 'Барчаси',
+    clearFilters: 'Тозалаш', results: (n: number) => `${n} тадан`,
 
     loading: 'Юкламаларингиз юкланмоқда…',
     failedLoad: 'Маълумотларни юклаб бўлмади.',
-    noData: 'Ҳозircha юкламалар йўқ',
+    noData: 'Ҳозирча юкламалар йўқ',
     noDataFiltered: 'Ушбу фильтрлар бўйича ҳеч нарса топилмади',
     noDataHint: 'Ҳужжатдан матн ажратинг ва у шу ерда пайдо бўлади.',
 
-    view: 'Матнни кўриш',
-    deleteBtn: 'Ўчириш',
+    view: 'Кўриш', deleteBtn: 'Ўчириш',
     viewTitle: 'Ажратилган матн',
-    close: 'Ёпиш',
-    copyText: 'Матнни нусхалаш',
-    copied: 'Матн нусхаланди.',
+    loadingText: 'Матн юкланмоқда…',
+    textFailed: 'Матнни юклаб бўлмади.',
+    copyText: 'Нусхалаш', copied: 'Матн нусхаланди.',
     downloadText: '.txt юклаш',
     noText: 'Бу вазифа матн бермади.',
 
     deleteTitle: 'Ёзувни ўчириш',
     deleteConfirm: 'Ушбу вазифанинг сақланган матни ва маълумотлари ўчирилади.',
     deleteWarning: 'Бу амални қайтариб бўлмайди.',
-    cancel: 'Бекор қилиш',
-    deleting: 'Ўчирилмоқда…',
-    deletedSuccess: 'Ёзув ўчирилди.',
-    deleteFailed: 'Ёзувни ўчириб бўлмади.',
+    cancel: 'Бекор қилиш', deleting: 'Ўчирилмоқда…',
+    deletedSuccess: 'Ёзув ўчирилди.', deleteFailed: 'Ёзувни ўчириб бўлмади.',
 
     showing: (a: number, b: number, n: number) => `${n} тадан ${a}–${b} кўрсатилмоқда`,
-    previous: 'Олдинги',
-    next: 'Кейинги',
+    previous: 'Олдинги', next: 'Кейинги',
 
     stSuccess: 'Муваффақиятли', stFailed: 'Хатолик', stTimeout: 'Вақт тугади',
     stProcessing: 'Ишланмоқда', stInterrupted: 'Узилди',
@@ -373,47 +292,25 @@ const TRANSLATIONS = {
     bankName: "O'zbekiston Respublikasi Markaziy Banki",
     deptSubtitle: 'Optik matnni aniqlash va ekstraksiya platformasi',
     appName: 'OCR',
-    navUpload: 'Matnni ajratib olish',
-    navFileUploads: 'Fayl yuklamalari',
-    navInternalAll: 'Barcha ichki ishlar',
-    navExternalAll: 'Tashqi API ishlari',
-    navOcrStatus: 'Dvigatellar holati',
-    usersBtn: 'Foydalanuvchilar',
-    sessionsBtn: 'Sessiyalar',
-    actionsBtn: 'Harakatlar',
-    administration: 'Administratsiya',
-    signOut: 'Chiqish',
+    navUpload: 'Matnni ajratib olish', navFileUploads: 'Fayl yuklamalari',
+    navInternalAll: 'Barcha ichki ishlar', navExternalAll: 'Tashqi API ishlari', navOcrStatus: 'Dvigatellar holati',
+    usersBtn: 'Foydalanuvchilar', sessionsBtn: 'Sessiyalar', actionsBtn: 'Harakatlar',
+    administration: 'Administratsiya', signOut: 'Chiqish',
 
     pageTitle: 'Fayl yuklamalari',
     pageDesc: 'Siz OCR xizmatiga yuborgan barcha hujjatlar.',
-    refresh: 'Yangilash',
-    newUpload: 'Yangi ajratish',
+    refresh: 'Yangilash', newUpload: 'Yangi ajratish',
 
-    statTotal: 'Jami yuklamalar',
-    statSuccess: 'Muvaffaqiyatli',
-    statProblems: 'Eʼtibor talab qiladi',
-    statChars: 'Ajratilgan belgilar',
+    statTotal: 'Jami yuklamalar', statSuccess: 'Muvaffaqiyatli',
+    statProblems: 'Eʼtibor talab qiladi', statChars: 'Ajratilgan belgilar',
 
-    colNum: '#',
-    colJob: 'VAZIFA ID',
-    colFile: 'FAYL',
-    colStatus: 'HOLAT',
-    colPages: 'SAHIFALAR',
-    colChars: 'BELGILAR',
-    colLang: 'TIL',
-    colDuration: 'DAVOMIYLIGI',
-    colCreated: 'BOSHLANDI',
-    colFinished: 'TUGADI',
+    colNum: '#', colFilename: 'FAYL NOMI', colType: 'TURI', colPages: 'SAHIFALAR',
+    colLang: 'TIL', colChars: 'BELGILAR', colStatus: 'HOLAT',
+    colDuration: 'DAVOMIYLIGI', colCreated: 'YARATILGAN', colFinished: 'TUGAGAN',
     colActions: 'AMALLAR',
 
-    searchJob: 'Vazifa ID boʻyicha qidirish…',
-    allTypes: 'Barcha fayl turlari',
-    allStatuses: 'Barcha holatlar',
-    allLanguages: 'Barcha tillar',
-    clearFilters: 'Filtrlarni tozalash',
-    activeFilters: 'Faol filtrlar:',
-    fType: 'Turi', fStatus: 'Holat', fLang: 'Til', fDate: 'Sana', fJob: 'Vazifa ID',
-    results: (n: number) => `${n} ta natija`,
+    phSearch: 'Qidirish…', phMin: 'min', phMax: 'maks', all: 'Barchasi',
+    clearFilters: 'Tozalash', results: (n: number) => `${n} tadan`,
 
     loading: 'Yuklamalaringiz yuklanmoqda…',
     failedLoad: 'Maʼlumotlarni yuklab boʻlmadi.',
@@ -421,26 +318,22 @@ const TRANSLATIONS = {
     noDataFiltered: 'Ushbu filtrlar boʻyicha hech narsa topilmadi',
     noDataHint: 'Hujjatdan matn ajrating va u shu yerda paydo boʻladi.',
 
-    view: 'Matnni koʻrish',
-    deleteBtn: 'Oʻchirish',
+    view: 'Koʻrish', deleteBtn: 'Oʻchirish',
     viewTitle: 'Ajratilgan matn',
-    close: 'Yopish',
-    copyText: 'Matnni nusxalash',
-    copied: 'Matn nusxalandi.',
+    loadingText: 'Matn yuklanmoqda…',
+    textFailed: 'Matnni yuklab boʻlmadi.',
+    copyText: 'Nusxalash', copied: 'Matn nusxalandi.',
     downloadText: '.txt yuklash',
     noText: 'Bu vazifa matn bermadi.',
 
     deleteTitle: 'Yozuvni oʻchirish',
     deleteConfirm: 'Ushbu vazifaning saqlangan matni va maʼlumotlari oʻchiriladi.',
     deleteWarning: 'Bu amalni qaytarib boʻlmaydi.',
-    cancel: 'Bekor qilish',
-    deleting: 'Oʻchirilmoqda…',
-    deletedSuccess: 'Yozuv oʻchirildi.',
-    deleteFailed: 'Yozuvni oʻchirib boʻlmadi.',
+    cancel: 'Bekor qilish', deleting: 'Oʻchirilmoqda…',
+    deletedSuccess: 'Yozuv oʻchirildi.', deleteFailed: 'Yozuvni oʻchirib boʻlmadi.',
 
     showing: (a: number, b: number, n: number) => `${n} tadan ${a}–${b} koʻrsatilmoqda`,
-    previous: 'Oldingi',
-    next: 'Keyingi',
+    previous: 'Oldingi', next: 'Keyingi',
 
     stSuccess: 'Muvaffaqiyatli', stFailed: 'Xatolik', stTimeout: 'Vaqt tugadi',
     stProcessing: 'Ishlanmoqda', stInterrupted: 'Uzildi',
@@ -452,7 +345,7 @@ const TRANSLATIONS = {
 
     officialDesc: 'OCR — Oʻzbekiston Markaziy bankining ichki hujjatlardan matn ajratib olish platformasi',
     aboutCbu: 'MBU Haqida', executiveB: 'Boshqaruv kengashi', legislation: 'Qonunchilik',
-    publications: 'Publikatsiyalar', dataStats: "Maʼlumotlar va statistika", services: 'Xizmatlar',
+    publications: 'Publikatsiyalar', dataStats: 'Maʼlumotlar va statistika', services: 'Xizmatlar',
     exchangeR: 'Valyuta kurslari', policyR: 'Asosiy stavka', paymentS: "To'lov tizimlari",
     licensing: 'Litsenziyalash', pressCenter: 'Axborot xizmati', contact: "Bog'lanish",
     addressS: "Islom Karimov Ko'chasi, 6",
@@ -479,7 +372,6 @@ interface OcrJob {
   page_count: number | null;
   language: string | null;
   status: string;
-  extracted_text: string | null;
   extracted_text_length: number;
   created_at: string;
   duration: number | string | null;
@@ -536,20 +428,29 @@ const MyUploadsPage: React.FC = () => {
   const [lang, setLang] = useState<LangKey>('en');
   const [pendingLang, setPendingLang] = useState<LangKey | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   const t = TRANSLATIONS[lang] ?? TRANSLATIONS.en;
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const [searchJob, setSearchJob] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [langFilter, setLangFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('');
+  /* ── One filter per column ── */
+  const [fFilename, setFFilename]   = useState('');
+  const [fType, setFType]           = useState('all');
+  const [fPagesMin, setFPagesMin]   = useState('');
+  const [fLang, setFLang]           = useState('all');
+  const [fCharsMin, setFCharsMin]   = useState('');
+  const [fStatus, setFStatus]       = useState('all');
+  const [fDurMax, setFDurMax]       = useState('');
+  const [fCreated, setFCreated]     = useState('');
+  const [fFinished, setFFinished]   = useState('');
+
   const [currentPage, setCurrentPage] = useState(1);
 
+  /* ── Modals ── */
   const [viewJob, setViewJob] = useState<OcrJob | null>(null);
+  const [viewText, setViewText] = useState<string | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
   const [deleteJob, setDeleteJob] = useState<OcrJob | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -584,11 +485,11 @@ const MyUploadsPage: React.FC = () => {
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  /* ── Fetch ── */
+  /* ── Load the list ── */
   const fetchData = useCallback(async () => {
     try {
       const res = await apiFetch('/api/get_all_user_internal_ocr_data');
-      if (!res || !res.ok) throw new Error(`HTTP ${res?.status}`);
+      if (!res || !res.ok) throw new Error();
       const payload = await res.json();
 
       if (payload.user) {
@@ -596,13 +497,13 @@ const MyUploadsPage: React.FC = () => {
         const mapped = (['en', 'ru', 'uz_c', 'uz_l'] as LangKey[]).find((k) => k === payload.user.language);
         if (mapped) setLang(mapped);
       }
-      // The endpoint returns Status 'Failed' with an empty Data set when the
-      // user has no jobs yet — that is an empty list, not an error.
+      // Status is 'Failed' with an empty Data when the user has no jobs —
+      // that is an empty list, not an error.
       setJobs(Array.isArray(payload.Data) ? payload.Data : []);
-      setError(null);
+      setError(false);
     } catch (err) {
       console.error('Failed to load uploads:', err);
-      setError('load');
+      setError(true);
     } finally {
       setIsLoading(false);
     }
@@ -610,7 +511,7 @@ const MyUploadsPage: React.FC = () => {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  /* ── Refresh while anything is still processing ── */
+  /* ── Poll while something is still processing ── */
   useEffect(() => {
     if (!jobs.some((j) => j.status === 'processing')) return;
     const id = setInterval(fetchData, 4000);
@@ -628,53 +529,51 @@ const MyUploadsPage: React.FC = () => {
     } catch {}
   }, []);
 
-  /* ── Filtering ── */
-  const filtered = useMemo(() => {
-    let f = [...jobs];
-    if (searchJob.trim()) {
-      const q = searchJob.trim().toLowerCase();
-      f = f.filter((j) => j.unique_job_id?.toLowerCase().includes(q) || j.filename?.toLowerCase().includes(q));
-    }
-    if (typeFilter !== 'all')   f = f.filter((j) => (j.file_extension || '').toLowerCase() === typeFilter);
-    if (statusFilter !== 'all') f = f.filter((j) => j.status === statusFilter);
-    if (langFilter !== 'all')   f = f.filter((j) => (j.language ?? 'unknown') === langFilter);
-    if (dateFilter)             f = f.filter((j) => (j.created_at ?? '').substring(0, 10) === dateFilter);
-    return f.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [jobs, searchJob, typeFilter, statusFilter, langFilter, dateFilter]);
+  /* ── View: the text is not in the list payload, fetch it on demand ── */
+  const openView = async (job: OcrJob) => {
+    setViewJob(job);
+    setViewText(null);
+    setViewLoading(true);
+    try {
+      const res = await apiFetch(
+        `/api/get_extracted_text_user_internal_ocr_data?unique_job_id=${encodeURIComponent(job.unique_job_id)}`
+      );
+      if (!res || !res.ok) throw new Error();
+      const payload = await res.json();
 
-  const stats = useMemo(() => ({
-    total: jobs.length,
-    success: jobs.filter((j) => j.status === 'success').length,
-    problems: jobs.filter((j) => ['failed', 'timeout', 'interrupted'].includes(j.status)).length,
-    chars: jobs.reduce((s, j) => s + (j.extracted_text_length ?? 0), 0),
-  }), [jobs]);
+      // Accept whichever shape the DB helper returns: a bare string, a row, or
+      // a one-row list.
+      const d = payload.Data;
+      const text =
+        typeof d === 'string' ? d
+        : Array.isArray(d)    ? (d[0]?.extracted_text ?? null)
+        : (d?.extracted_text ?? null);
 
-  const hasFilters = Boolean(searchJob || dateFilter) || typeFilter !== 'all' || statusFilter !== 'all' || langFilter !== 'all';
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated = useMemo(
-    () => filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
-    [filtered, currentPage]
-  );
-
-  useEffect(() => { setCurrentPage(1); }, [searchJob, typeFilter, statusFilter, langFilter, dateFilter]);
-
-  const clearFilters = () => {
-    setSearchJob(''); setTypeFilter('all'); setStatusFilter('all'); setLangFilter('all'); setDateFilter('');
-  };
-
-  const statusStyle = (status: string) => {
-    switch (status) {
-      case 'success':     return { label: t.stSuccess,     color: '#15803d', bg: '#e7f8ec', border: '#8fdca6', icon: 'check_circle', spin: false };
-      case 'failed':      return { label: t.stFailed,      color: '#b91c1c', bg: '#fdeaea', border: '#f3a9a9', icon: 'error',        spin: false };
-      case 'timeout':     return { label: t.stTimeout,     color: '#c2410c', bg: '#fdeee4', border: '#f5bf94', icon: 'schedule',     spin: false };
-      case 'interrupted': return { label: t.stInterrupted, color: '#a16207', bg: '#fdf5da', border: '#ecd07a', icon: 'warning',      spin: false };
-      default:            return { label: t.stProcessing,  color: '#1d4ed8', bg: '#e8eefe', border: '#a8c0fb', icon: 'sync',         spin: true  };
+      setViewText(text || null);
+    } catch {
+      showToast(t.textFailed, 'error');
+      setViewText(null);
+    } finally {
+      setViewLoading(false);
     }
   };
 
-  const getInitials = (u: User | null) => {
-    if (!u) return '?';
-    return ((u.first_name?.[0] ?? '') + (u.last_name?.[0] ?? '')).toUpperCase() || u.username?.[0]?.toUpperCase() || '?';
+  const closeView = () => { setViewJob(null); setViewText(null); };
+
+  const copyText = async () => {
+    if (!viewText) return;
+    try { await navigator.clipboard.writeText(viewText); showToast(t.copied, 'success'); } catch {}
+  };
+
+  const downloadText = () => {
+    if (!viewText || !viewJob) return;
+    const blob = new Blob([viewText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${viewJob.filename || viewJob.unique_job_id}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   /* ── Delete ── */
@@ -697,36 +596,90 @@ const MyUploadsPage: React.FC = () => {
     }
   };
 
-  const copyText = async (text: string | null) => {
-    if (!text) return;
-    try { await navigator.clipboard.writeText(text); showToast(t.copied, 'success'); } catch {}
+  /* ── Filtering ── */
+  const filtered = useMemo(() => {
+    let f = [...jobs];
+
+    if (fFilename.trim()) {
+      const q = fFilename.trim().toLowerCase();
+      f = f.filter((j) =>
+        (j.filename ?? '').toLowerCase().includes(q) ||
+        (j.unique_job_id ?? '').toLowerCase().includes(q));
+    }
+    if (fType !== 'all')   f = f.filter((j) => (j.file_extension || '').toLowerCase() === fType);
+    if (fLang !== 'all')   f = f.filter((j) => (j.language ?? 'unknown') === fLang);
+    if (fStatus !== 'all') f = f.filter((j) => j.status === fStatus);
+
+    if (fPagesMin !== '' && !isNaN(Number(fPagesMin)))
+      f = f.filter((j) => (j.page_count ?? -1) >= Number(fPagesMin));
+    if (fCharsMin !== '' && !isNaN(Number(fCharsMin)))
+      f = f.filter((j) => (j.extracted_text_length ?? 0) >= Number(fCharsMin));
+    if (fDurMax !== '' && !isNaN(Number(fDurMax)))
+      f = f.filter((j) => Number(j.duration ?? Infinity) <= Number(fDurMax));
+
+    if (fCreated)  f = f.filter((j) => (j.created_at ?? '').substring(0, 10) === fCreated);
+    if (fFinished) f = f.filter((j) => (j.finished_at ?? '').substring(0, 10) === fFinished);
+
+    return f.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [jobs, fFilename, fType, fPagesMin, fLang, fCharsMin, fStatus, fDurMax, fCreated, fFinished]);
+
+  const stats = useMemo(() => ({
+    total: jobs.length,
+    success: jobs.filter((j) => j.status === 'success').length,
+    problems: jobs.filter((j) => ['failed', 'timeout', 'interrupted'].includes(j.status)).length,
+    chars: jobs.reduce((s, j) => s + (j.extracted_text_length ?? 0), 0),
+  }), [jobs]);
+
+  const hasFilters =
+    Boolean(fFilename || fPagesMin || fCharsMin || fDurMax || fCreated || fFinished) ||
+    fType !== 'all' || fLang !== 'all' || fStatus !== 'all';
+
+  const clearFilters = () => {
+    setFFilename(''); setFType('all'); setFPagesMin(''); setFLang('all');
+    setFCharsMin(''); setFStatus('all'); setFDurMax(''); setFCreated(''); setFFinished('');
   };
 
-  const downloadText = (job: OcrJob) => {
-    if (!job.extracted_text) return;
-    const blob = new Blob([job.extracted_text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${job.filename || job.unique_job_id}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const paginated = useMemo(
+    () => filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
+    [filtered, currentPage]
+  );
+
+  useEffect(() => { setCurrentPage(1); },
+    [fFilename, fType, fPagesMin, fLang, fCharsMin, fStatus, fDurMax, fCreated, fFinished]);
+
+  const statusStyle = (status: string) => {
+    switch (status) {
+      case 'success':     return { label: t.stSuccess,     color: '#15803d', bg: '#e7f8ec', border: '#8fdca6', icon: 'check_circle', spin: false };
+      case 'failed':      return { label: t.stFailed,      color: '#b91c1c', bg: '#fdeaea', border: '#f3a9a9', icon: 'error',        spin: false };
+      case 'timeout':     return { label: t.stTimeout,     color: '#c2410c', bg: '#fdeee4', border: '#f5bf94', icon: 'schedule',     spin: false };
+      case 'interrupted': return { label: t.stInterrupted, color: '#a16207', bg: '#fdf5da', border: '#ecd07a', icon: 'warning',      spin: false };
+      default:            return { label: t.stProcessing,  color: '#1d4ed8', bg: '#e8eefe', border: '#a8c0fb', icon: 'sync',         spin: true  };
+    }
   };
 
-  const selectStyle: React.CSSProperties = {
-    width: '100%', padding: '12px 14px 12px 44px', fontSize: '14px',
-    background: '#f8fafc', color: '#0f172a', border: `1px solid ${CELL_BORDER}`,
-    borderRadius: '10px', outline: 'none', cursor: 'pointer',
-    appearance: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+  const getInitials = (u: User | null) => {
+    if (!u) return '?';
+    return ((u.first_name?.[0] ?? '') + (u.last_name?.[0] ?? '')).toUpperCase() || u.username?.[0]?.toUpperCase() || '?';
   };
+
+  /* ── Filter-cell styles ── */
+  const filterInput: React.CSSProperties = {
+    width: '100%', padding: '7px 10px', fontSize: '12.5px', fontFamily: 'inherit',
+    color: '#25313d', background: 'white', border: `1px solid ${CELL_BORDER}`,
+    borderRadius: '7px', outline: 'none', boxSizing: 'border-box',
+  };
+  const filterSelect: React.CSSProperties = { ...filterInput, cursor: 'pointer', appearance: 'none' };
 
   const th: React.CSSProperties = {
-    padding: '16px 14px', textAlign: 'left', fontWeight: 700, color: NAVY,
-    fontSize: '12px', letterSpacing: '0.4px', whiteSpace: 'nowrap',
-    borderBottom: `2px solid ${NAVY}`, background: '#f6f8fa',
+    padding: '14px 12px', textAlign: 'left', fontWeight: 700, color: NAVY,
+    fontSize: '11.5px', letterSpacing: '0.4px', whiteSpace: 'nowrap',
+    background: '#f6f8fa',
   };
-
-  const td: React.CSSProperties = { padding: '14px', fontSize: '13px', color: '#25313d', whiteSpace: 'nowrap' };
+  const thFilter: React.CSSProperties = {
+    padding: '0 8px 12px', background: '#f6f8fa', borderBottom: `2px solid ${NAVY}`,
+  };
+  const td: React.CSSProperties = { padding: '13px 12px', fontSize: '13px', color: '#25313d', whiteSpace: 'nowrap' };
 
   return (
     <div style={{ minHeight: '100vh', width: '100%', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', backgroundColor: '#f0f2f5', fontFamily: '"Inter","Segoe UI",system-ui,-apple-system,sans-serif', textAlign: 'left' }}>
@@ -860,8 +813,7 @@ const MyUploadsPage: React.FC = () => {
                         <button key={route} onClick={() => { navigate(route); setDropdownOpen(false); }}
                           style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '9px 10px', borderRadius: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', color: '#1f2937', fontSize: '13px', fontWeight: 500, fontFamily: 'inherit', marginBottom: '1px' }}
                           onMouseEnter={(e) => { e.currentTarget.style.background = bg; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                        >
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}>
                           <span className="material-symbols-outlined" style={{ fontSize: '18px', color }}>{icon}</span>
                           <span style={{ flex: 1 }}>{t[labelKey] as string}</span>
                           <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#cbd5e1' }}>chevron_right</span>
@@ -874,8 +826,7 @@ const MyUploadsPage: React.FC = () => {
                     <button onClick={() => doLogout()}
                       style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '9px 10px', borderRadius: '9px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', color: '#dc2626', fontSize: '13px', fontWeight: 500, fontFamily: 'inherit' }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = '#fef2f2'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
-                    >
+                      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}>
                       <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>logout</span>
                       {t.signOut}
                     </button>
@@ -889,7 +840,7 @@ const MyUploadsPage: React.FC = () => {
 
       {/* ── Hero bar ── */}
       <div style={{ background: 'linear-gradient(135deg,#f1f5f9 0%,#e4eaf1 100%)', padding: isMobile ? '16px 20px' : '20px 32px', borderBottom: '1px solid #dde3e9' }}>
-        <div style={{ maxWidth: '1600px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '12px' : 0 }}>
+        <div style={{ maxWidth: '1700px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '12px' : 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <span className="material-symbols-outlined" style={{ fontSize: '32px', color: NAVY }}>query_stats</span>
             <div>
@@ -911,11 +862,11 @@ const MyUploadsPage: React.FC = () => {
       </div>
 
       {/* ══════════════════════ MAIN ══════════════════════ */}
-      <main style={{ flex: 1, padding: isMobile ? '22px 14px' : '30px 32px' }}>
-        <div style={{ maxWidth: '1600px', margin: '0 auto' }}>
+      <main style={{ flex: 1, padding: isMobile ? '22px 14px' : '28px 32px' }}>
+        <div style={{ maxWidth: '1700px', margin: '0 auto' }}>
 
           {/* Stat cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: '18px', marginBottom: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: '18px', marginBottom: '22px' }}>
             {[
               { label: t.statTotal,    value: formatNumber(stats.total),    color: NAVY,      bg: '#e9eef3', icon: 'inbox' },
               { label: t.statSuccess,  value: formatNumber(stats.success),  color: '#15803d', bg: '#e7f8ec', icon: 'check_circle' },
@@ -934,84 +885,25 @@ const MyUploadsPage: React.FC = () => {
             ))}
           </div>
 
-          {/* Filters */}
-          <div style={{ background: 'white', padding: isMobile ? '18px' : '22px', borderRadius: '16px', marginBottom: '22px', border: `1px solid ${CELL_BORDER}`, boxShadow: '0 2px 12px rgba(10,40,70,0.05)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1.2fr 1.2fr 1.2fr 1fr', gap: '12px' }}>
-              {/* Search */}
-              <div style={{ position: 'relative' }}>
-                <span className="material-symbols-outlined" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '20px' }}>search</span>
-                <input type="text" value={searchJob} onChange={(e) => setSearchJob(e.target.value)} placeholder={t.searchJob}
-                  style={{ ...selectStyle, cursor: 'text', fontFamily: 'monospace' }} />
-              </div>
-
-              {/* File type */}
-              <div style={{ position: 'relative' }}>
-                <span className="material-symbols-outlined" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '20px', zIndex: 1 }}>draft</span>
-                <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={selectStyle}>
-                  <option value="all">{t.allTypes}</option>
-                  <option value=".pdf">PDF</option>
-                  <option value=".docx">DOCX</option>
-                  <option value=".jpg">JPG</option>
-                  <option value=".jpeg">JPEG</option>
-                  <option value=".png">PNG</option>
-                </select>
-              </div>
-
-              {/* Status */}
-              <div style={{ position: 'relative' }}>
-                <span className="material-symbols-outlined" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '20px', zIndex: 1 }}>tune</span>
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={selectStyle}>
-                  <option value="all">{t.allStatuses}</option>
-                  <option value="success">{t.stSuccess}</option>
-                  <option value="failed">{t.stFailed}</option>
-                  <option value="timeout">{t.stTimeout}</option>
-                  <option value="interrupted">{t.stInterrupted}</option>
-                  <option value="processing">{t.stProcessing}</option>
-                </select>
-              </div>
-
-              {/* Language */}
-              <div style={{ position: 'relative' }}>
-                <span className="material-symbols-outlined" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '20px', zIndex: 1 }}>translate</span>
-                <select value={langFilter} onChange={(e) => setLangFilter(e.target.value)} style={selectStyle}>
-                  <option value="all">{t.allLanguages}</option>
-                  <option value="uz_l">O'zbek (Lotin)</option>
-                  <option value="uz_c">Ўзбек (Кирил)</option>
-                  <option value="ru">Русский</option>
-                  <option value="en">English</option>
-                  <option value="unknown">—</option>
-                </select>
-              </div>
-
-              {/* Date */}
-              <div style={{ position: 'relative' }}>
-                <span className="material-symbols-outlined" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '19px', zIndex: 1, pointerEvents: 'none' }}>calendar_today</span>
-                <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} style={{ ...selectStyle, colorScheme: 'light' }} />
-              </div>
-            </div>
-
-            {hasFilters && (
-              <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', padding: '12px 16px', background: '#f4f7fa', borderRadius: '10px', fontSize: '13px', color: '#6b7784' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '17px', color: NAVY }}>filter_alt</span>
-                {t.activeFilters}
-                {searchJob && <span style={{ background: 'white', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${CELL_BORDER}` }}>{t.fJob}: <strong>{searchJob}</strong></span>}
-                {typeFilter !== 'all' && <span style={{ background: 'white', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${CELL_BORDER}` }}>{t.fType}: <strong>{typeFilter.replace('.', '').toUpperCase()}</strong></span>}
-                {statusFilter !== 'all' && <span style={{ background: 'white', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${CELL_BORDER}` }}>{t.fStatus}: <strong>{statusStyle(statusFilter).label}</strong></span>}
-                {langFilter !== 'all' && <span style={{ background: 'white', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${CELL_BORDER}` }}>{t.fLang}: <strong>{LANGUAGE_STYLE[langFilter]?.label ?? langFilter}</strong></span>}
-                {dateFilter && <span style={{ background: 'white', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${CELL_BORDER}` }}>{t.fDate}: <strong>{dateFilter}</strong></span>}
-                <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <strong style={{ color: NAVY }}>{t.results(filtered.length)}</strong>
-                  <button onClick={clearFilters} style={{ padding: '7px 14px', background: 'white', border: '1.5px solid #f3a9a9', borderRadius: '9px', color: '#b91c1c', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'inherit' }}>
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
-                    {t.clearFilters}
-                  </button>
-                </span>
-              </div>
-            )}
-          </div>
-
           {/* Table */}
           <div style={{ background: 'white', borderRadius: '16px', border: `1px solid ${CELL_BORDER}`, boxShadow: '0 2px 12px rgba(10,40,70,0.05)', overflow: 'hidden' }}>
+
+            {/* Filter summary strip */}
+            {hasFilters && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 18px', background: '#fdf8e8', borderBottom: `1px solid ${GOLD}55`, fontSize: '13px', color: '#7a6320' }}>
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>filter_alt</span>
+                <strong>{t.results(filtered.length)} {jobs.length}</strong>
+                <div style={{ flex: 1 }} />
+                <button onClick={clearFilters}
+                  style={{ padding: '7px 14px', background: 'white', border: '1.5px solid #f3a9a9', borderRadius: '9px', color: '#b91c1c', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'inherit' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#fdeaea'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+                  {t.clearFilters}
+                </button>
+              </div>
+            )}
+
             {isLoading ? (
               <div style={{ padding: '80px', textAlign: 'center', color: '#6b7784' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: '46px', display: 'block', marginBottom: '16px', color: NAVY, animation: 'spin 1.6s linear infinite' }}>progress_activity</span>
@@ -1022,55 +914,161 @@ const MyUploadsPage: React.FC = () => {
                 <span className="material-symbols-outlined" style={{ fontSize: '46px', display: 'block', marginBottom: '16px' }}>error</span>
                 {t.failedLoad}
               </div>
-            ) : paginated.length === 0 ? (
-              <div style={{ padding: '80px 24px', textAlign: 'center', color: '#6b7784' }}>
-                <span className="material-symbols-outlined" style={{ fontSize: '54px', display: 'block', marginBottom: '16px', color: '#a9b6c2' }}>inbox</span>
-                <div style={{ fontSize: '16px', fontWeight: 600, color: NAVY, marginBottom: '8px' }}>{hasFilters ? t.noDataFiltered : t.noData}</div>
-                <div style={{ fontSize: '14px', marginBottom: '18px' }}>{hasFilters ? '' : t.noDataHint}</div>
-                {hasFilters
-                  ? <button onClick={clearFilters} style={{ padding: '10px 22px', background: '#f1f5f9', border: `1px solid ${CELL_BORDER}`, borderRadius: '9px', color: '#475569', cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit' }}>{t.clearFilters}</button>
-                  : <button onClick={() => navigate('/')} style={{ padding: '10px 22px', background: NAVY, border: 'none', borderRadius: '9px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 600, fontFamily: 'inherit' }}>{t.newUpload}</button>}
-              </div>
             ) : (
               <>
                 <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1280px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1500px' }}>
                     <thead>
+                      {/* Column titles */}
                       <tr>
-                        {[t.colNum, t.colJob, t.colFile, t.colStatus, t.colPages, t.colChars, t.colLang, t.colDuration, t.colCreated, t.colFinished, t.colActions].map((h, i) => (
-                          <th key={h} style={{ ...th, textAlign: i === 10 ? 'center' : 'left' }}>{h}</th>
-                        ))}
+                        <th style={{ ...th, width: '56px' }}>{t.colNum}</th>
+                        <th style={{ ...th, minWidth: '230px' }}>{t.colFilename}</th>
+                        <th style={{ ...th, width: '130px' }}>{t.colType}</th>
+                        <th style={{ ...th, width: '110px' }}>{t.colPages}</th>
+                        <th style={{ ...th, width: '130px' }}>{t.colLang}</th>
+                        <th style={{ ...th, width: '130px' }}>{t.colChars}</th>
+                        <th style={{ ...th, width: '150px' }}>{t.colStatus}</th>
+                        <th style={{ ...th, width: '120px' }}>{t.colDuration}</th>
+                        <th style={{ ...th, width: '160px' }}>{t.colCreated}</th>
+                        <th style={{ ...th, width: '160px' }}>{t.colFinished}</th>
+                        <th style={{ ...th, width: '190px', textAlign: 'center' }}>{t.colActions}</th>
+                      </tr>
+
+                      {/* One search field per column */}
+                      <tr>
+                        <th style={thFilter} />
+
+                        <th style={thFilter}>
+                          <input type="text" value={fFilename} onChange={(e) => setFFilename(e.target.value)}
+                            placeholder={t.phSearch} style={filterInput} />
+                        </th>
+
+                        <th style={thFilter}>
+                          <select value={fType} onChange={(e) => setFType(e.target.value)} style={filterSelect}>
+                            <option value="all">{t.all}</option>
+                            <option value=".pdf">PDF</option>
+                            <option value=".docx">DOCX</option>
+                            <option value=".jpg">JPG</option>
+                            <option value=".jpeg">JPEG</option>
+                            <option value=".png">PNG</option>
+                          </select>
+                        </th>
+
+                        <th style={thFilter}>
+                          <input type="number" min="0" value={fPagesMin} onChange={(e) => setFPagesMin(e.target.value)}
+                            placeholder={t.phMin} style={filterInput} />
+                        </th>
+
+                        <th style={thFilter}>
+                          <select value={fLang} onChange={(e) => setFLang(e.target.value)} style={filterSelect}>
+                            <option value="all">{t.all}</option>
+                            <option value="uz_l">O'zbek (Lotin)</option>
+                            <option value="uz_c">Ўзбек (Кирил)</option>
+                            <option value="ru">Русский</option>
+                            <option value="en">English</option>
+                            <option value="unknown">—</option>
+                          </select>
+                        </th>
+
+                        <th style={thFilter}>
+                          <input type="number" min="0" value={fCharsMin} onChange={(e) => setFCharsMin(e.target.value)}
+                            placeholder={t.phMin} style={filterInput} />
+                        </th>
+
+                        <th style={thFilter}>
+                          <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} style={filterSelect}>
+                            <option value="all">{t.all}</option>
+                            <option value="success">{t.stSuccess}</option>
+                            <option value="failed">{t.stFailed}</option>
+                            <option value="timeout">{t.stTimeout}</option>
+                            <option value="interrupted">{t.stInterrupted}</option>
+                            <option value="processing">{t.stProcessing}</option>
+                          </select>
+                        </th>
+
+                        <th style={thFilter}>
+                          <input type="number" min="0" step="0.1" value={fDurMax} onChange={(e) => setFDurMax(e.target.value)}
+                            placeholder={t.phMax} style={filterInput} />
+                        </th>
+
+                        <th style={thFilter}>
+                          <input type="date" value={fCreated} onChange={(e) => setFCreated(e.target.value)}
+                            style={{ ...filterInput, colorScheme: 'light' }} />
+                        </th>
+
+                        <th style={thFilter}>
+                          <input type="date" value={fFinished} onChange={(e) => setFFinished(e.target.value)}
+                            style={{ ...filterInput, colorScheme: 'light' }} />
+                        </th>
+
+                        <th style={{ ...thFilter, textAlign: 'center' }}>
+                          {hasFilters && (
+                            <button onClick={clearFilters}
+                              style={{ padding: '7px 12px', background: 'white', border: '1.5px solid #f3a9a9', borderRadius: '7px', color: '#b91c1c', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                              <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>close</span>
+                              {t.clearFilters}
+                            </button>
+                          )}
+                        </th>
                       </tr>
                     </thead>
+
                     <tbody>
-                      {paginated.map((job, index) => {
+                      {paginated.length === 0 ? (
+                        <tr>
+                          <td colSpan={11} style={{ padding: '70px 24px', textAlign: 'center', color: '#6b7784' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '52px', display: 'block', marginBottom: '14px', color: '#a9b6c2' }}>inbox</span>
+                            <div style={{ fontSize: '16px', fontWeight: 600, color: NAVY, marginBottom: '8px' }}>
+                              {hasFilters ? t.noDataFiltered : t.noData}
+                            </div>
+                            {!hasFilters && <div style={{ fontSize: '14px', marginBottom: '18px' }}>{t.noDataHint}</div>}
+                            {hasFilters
+                              ? <button onClick={clearFilters} style={{ padding: '10px 22px', background: '#f1f5f9', border: `1px solid ${CELL_BORDER}`, borderRadius: '9px', color: '#475569', cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit' }}>{t.clearFilters}</button>
+                              : <button onClick={() => navigate('/')} style={{ padding: '10px 22px', background: NAVY, border: 'none', borderRadius: '9px', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 600, fontFamily: 'inherit' }}>{t.newUpload}</button>}
+                          </td>
+                        </tr>
+                      ) : paginated.map((job, index) => {
                         const n = (currentPage - 1) * ITEMS_PER_PAGE + index + 1;
                         const s = statusStyle(job.status);
                         const f = formatStyle(job.file_extension);
                         const l = LANGUAGE_STYLE[job.language ?? 'unknown'] ?? LANGUAGE_STYLE.unknown;
+
                         return (
                           <tr key={job.unique_job_id}
                             style={{ borderBottom: '1px solid #eef2f6', background: index % 2 === 0 ? 'white' : '#fafbfc' }}
                             onMouseEnter={(e) => { e.currentTarget.style.background = '#f2f8fd'; }}
                             onMouseLeave={(e) => { e.currentTarget.style.background = index % 2 === 0 ? 'white' : '#fafbfc'; }}
                           >
-                            <td style={{ ...td, color: '#94a3b8', fontWeight: 500 }}>{n}</td>
+                            <td style={{ ...td, color: '#94a3b8', fontWeight: 600 }}>{n}</td>
 
-                            <td style={{ ...td, fontFamily: 'monospace', fontSize: '12.5px' }} title={job.unique_job_id}>
-                              {job.unique_job_id?.slice(0, 12)}…
+                            <td style={{ ...td, maxWidth: '260px' }}>
+                              <div title={job.filename} style={{ fontWeight: 600, color: NAVY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {job.filename || '—'}
+                              </div>
+                              <div title={job.unique_job_id} style={{ fontSize: '11.5px', color: '#8695a4', fontFamily: 'monospace' }}>
+                                {job.unique_job_id?.slice(0, 14)}…
+                              </div>
                             </td>
 
                             <td style={td}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-                                <span style={{ width: '30px', height: '30px', borderRadius: '8px', background: f.bg, border: `1px solid ${f.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                  <span className="material-symbols-outlined" style={{ fontSize: '17px', color: f.color }}>{f.icon}</span>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '5px 11px', borderRadius: '8px', background: f.bg, border: `1px solid ${f.color}33` }}>
+                                <span className="material-symbols-outlined" style={{ fontSize: '17px', color: f.color }}>{f.icon}</span>
+                                <span style={{ fontWeight: 700, color: f.color, fontSize: '12px' }}>
+                                  {(job.file_extension || '').replace('.', '').toUpperCase()}
                                 </span>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontWeight: 700, color: f.color, fontSize: '12px' }}>{(job.file_extension || '').replace('.', '').toUpperCase()}</div>
-                                  <div style={{ fontSize: '11.5px', color: '#8695a4' }}>{formatBytes(job.file_size)}</div>
-                                </div>
-                              </div>
+                              </span>
+                              <div style={{ fontSize: '11.5px', color: '#8695a4', marginTop: '3px' }}>{formatBytes(job.file_size)}</div>
                             </td>
+
+                            <td style={{ ...td, fontWeight: 700, color: job.page_count == null ? '#a9b6c2' : '#0e7490' }}>
+                              {job.page_count ?? '—'}
+                            </td>
+
+                            <td style={td}>
+                              <span style={{ padding: '4px 10px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, background: l.bg, color: l.color }}>{l.label}</span>
+                            </td>
+
+                            <td style={{ ...td, fontWeight: 700, color: '#3D7A52' }}>{formatNumber(job.extracted_text_length)}</td>
 
                             <td style={td}>
                               <span style={{ padding: '5px 12px', borderRadius: '30px', fontSize: '12px', fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}`, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
@@ -1079,32 +1077,27 @@ const MyUploadsPage: React.FC = () => {
                               </span>
                             </td>
 
-                            <td style={{ ...td, color: job.page_count == null ? '#a9b6c2' : '#0e7490', fontWeight: 600 }}>
-                              {job.page_count ?? '—'}
-                            </td>
-
-                            <td style={{ ...td, fontWeight: 600, color: '#3D7A52' }}>{formatNumber(job.extracted_text_length)}</td>
-
-                            <td style={td}>
-                              <span style={{ padding: '4px 10px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, background: l.bg, color: l.color }}>{l.label}</span>
-                            </td>
-
                             <td style={{ ...td, fontWeight: 600 }}>{formatDuration(job.duration)}</td>
                             <td style={{ ...td, color: '#5b6775', fontSize: '12.5px' }}>{formatDateTime(job.created_at)}</td>
                             <td style={{ ...td, color: '#5b6775', fontSize: '12.5px' }}>{formatDateTime(job.finished_at)}</td>
 
                             <td style={{ ...td, textAlign: 'center' }}>
                               <div style={{ display: 'inline-flex', gap: '8px' }}>
-                                <button onClick={() => setViewJob(job)} disabled={!job.extracted_text}
-                                  style={{ padding: '7px 13px', fontSize: '12.5px', fontWeight: 600, background: job.extracted_text ? '#eef4fa' : '#f1f4f7', color: job.extracted_text ? NAVY : '#b6c0ca', border: `1px solid ${CELL_BORDER}`, borderRadius: '8px', cursor: job.extracted_text ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: '5px', fontFamily: 'inherit' }}>
-                                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>visibility</span>
+                                <button onClick={() => openView(job)} disabled={job.status !== 'success'}
+                                  style={{ padding: '7px 14px', fontSize: '12.5px', fontWeight: 600,
+                                    background: job.status === 'success' ? '#eef4fa' : '#f1f4f7',
+                                    color: job.status === 'success' ? NAVY : '#b6c0ca',
+                                    border: `1px solid ${CELL_BORDER}`, borderRadius: '8px',
+                                    cursor: job.status === 'success' ? 'pointer' : 'not-allowed',
+                                    display: 'inline-flex', alignItems: 'center', gap: '5px', fontFamily: 'inherit' }}>
+                                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>visibility</span>
                                   {t.view}
                                 </button>
                                 <button onClick={() => setDeleteJob(job)}
-                                  style={{ padding: '7px 13px', fontSize: '12.5px', fontWeight: 600, background: 'white', color: '#b91c1c', border: '1.5px solid #f3a9a9', borderRadius: '8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', fontFamily: 'inherit' }}
+                                  style={{ padding: '7px 14px', fontSize: '12.5px', fontWeight: 600, background: 'white', color: '#b91c1c', border: '1.5px solid #f3a9a9', borderRadius: '8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', fontFamily: 'inherit' }}
                                   onMouseEnter={(e) => { e.currentTarget.style.background = '#fdeaea'; }}
                                   onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; }}>
-                                  <span className="material-symbols-outlined" style={{ fontSize: '15px' }}>delete</span>
+                                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
                                   {t.deleteBtn}
                                 </button>
                               </div>
@@ -1117,7 +1110,7 @@ const MyUploadsPage: React.FC = () => {
                 </div>
 
                 {filtered.length > ITEMS_PER_PAGE && (
-                  <div style={{ padding: '20px 24px', borderTop: `1px solid ${CELL_BORDER}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', flexWrap: 'wrap', gap: '14px' }}>
+                  <div style={{ padding: '18px 24px', borderTop: `1px solid ${CELL_BORDER}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', flexWrap: 'wrap', gap: '14px' }}>
                     <div style={{ fontSize: '13.5px', color: '#6b7784' }}>
                       {t.showing((currentPage - 1) * ITEMS_PER_PAGE + 1, Math.min(currentPage * ITEMS_PER_PAGE, filtered.length), filtered.length)}
                     </div>
@@ -1156,39 +1149,66 @@ const MyUploadsPage: React.FC = () => {
       {/* ── View text modal ── */}
       {viewJob && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(7,30,46,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}
-          onClick={() => setViewJob(null)}>
-          <div style={{ background: 'white', borderRadius: '18px', width: '900px', maxWidth: '100%', maxHeight: '86vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 64px rgba(0,0,0,0.3)', overflow: 'hidden' }}
+          onClick={closeView}>
+          <div style={{ background: 'white', borderRadius: '18px', width: '940px', maxWidth: '100%', maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 64px rgba(0,0,0,0.3)', overflow: 'hidden' }}
             onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px 22px', borderBottom: `1px solid ${CELL_BORDER}`, flexWrap: 'wrap' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: '21px', color: NAVY }}>article</span>
+
+            {/* Modal header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px 20px', borderBottom: `1px solid ${CELL_BORDER}`, flexWrap: 'wrap' }}>
+              {(() => {
+                const f = formatStyle(viewJob.file_extension);
+                return (
+                  <span style={{ width: '40px', height: '40px', borderRadius: '11px', background: f.bg, border: `1px solid ${f.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '21px', color: f.color }}>{f.icon}</span>
+                  </span>
+                );
+              })()}
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '16px', fontWeight: 700, color: NAVY }}>{t.viewTitle}</div>
-                <div style={{ fontSize: '12.5px', color: '#8695a4', fontFamily: 'monospace' }}>{viewJob.unique_job_id}</div>
+                <div style={{ fontSize: '15.5px', fontWeight: 700, color: NAVY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {viewJob.filename || t.viewTitle}
+                </div>
+                <div style={{ fontSize: '12px', color: '#8695a4', fontFamily: 'monospace' }}>{viewJob.unique_job_id}</div>
               </div>
               <div style={{ flex: 1 }} />
-              <button onClick={() => copyText(viewJob.extracted_text)}
-                style={{ padding: '8px 14px', background: 'white', border: `1px solid ${CELL_BORDER}`, borderRadius: '9px', fontSize: '13px', fontWeight: 600, color: NAVY, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'inherit' }}>
+              <button onClick={copyText} disabled={!viewText}
+                style={{ padding: '8px 14px', background: 'white', border: `1px solid ${CELL_BORDER}`, borderRadius: '9px', fontSize: '13px', fontWeight: 600, color: viewText ? NAVY : '#b6c0ca', cursor: viewText ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'inherit' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
                 {t.copyText}
               </button>
-              <button onClick={() => downloadText(viewJob)}
-                style={{ padding: '8px 14px', background: NAVY, border: 'none', borderRadius: '9px', fontSize: '13px', fontWeight: 600, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'inherit' }}>
+              <button onClick={downloadText} disabled={!viewText}
+                style={{ padding: '8px 14px', background: viewText ? NAVY : '#e0e4e8', border: 'none', borderRadius: '9px', fontSize: '13px', fontWeight: 600, color: viewText ? 'white' : '#98a2ad', cursor: viewText ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'inherit' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
                 {t.downloadText}
               </button>
-              <button onClick={() => setViewJob(null)}
+              <button onClick={closeView}
                 style={{ width: '38px', height: '38px', background: '#f1f5f9', border: 'none', borderRadius: '9px', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
               </button>
             </div>
 
-            <div style={{ padding: '20px 22px', overflow: 'auto' }}>
-              {viewJob.extracted_text ? (
+            {/* Quick facts strip */}
+            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', padding: '12px 20px', background: '#f8fafc', borderBottom: `1px solid ${CELL_BORDER}`, fontSize: '12.5px', color: '#6b7784' }}>
+              <span>{t.colType}: <strong style={{ color: formatStyle(viewJob.file_extension).color }}>{(viewJob.file_extension || '').replace('.', '').toUpperCase()}</strong></span>
+              <span>{t.colPages}: <strong style={{ color: '#0e7490' }}>{viewJob.page_count ?? '—'}</strong></span>
+              <span>{t.colLang}: <strong style={{ color: '#3574D3' }}>{(LANGUAGE_STYLE[viewJob.language ?? 'unknown'] ?? LANGUAGE_STYLE.unknown).label}</strong></span>
+              <span>{t.colChars}: <strong style={{ color: '#3D7A52' }}>{formatNumber(viewJob.extracted_text_length)}</strong></span>
+              <span>{t.colDuration}: <strong>{formatDuration(viewJob.duration)}</strong></span>
+              <span>{t.colCreated}: <strong>{formatDateTime(viewJob.created_at)}</strong></span>
+            </div>
+
+            {/* Text */}
+            <div style={{ padding: '18px 20px', overflow: 'auto' }}>
+              {viewLoading ? (
+                <div style={{ padding: '60px', textAlign: 'center', color: '#6b7784' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '40px', display: 'block', marginBottom: '14px', color: NAVY, animation: 'spin 1.6s linear infinite' }}>progress_activity</span>
+                  {t.loadingText}
+                </div>
+              ) : viewText ? (
                 <pre style={{ margin: 0, padding: '18px', textAlign: 'left', background: '#fcfdfe', border: `2px solid ${CELL_BORDER}`, borderLeft: `4px solid ${NAVY}`, borderRadius: '10px', fontSize: '13.5px', lineHeight: 1.75, color: '#16212c', fontFamily: '"SF Mono","Fira Mono",Consolas,monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                  {viewJob.extracted_text}
+                  {viewText}
                 </pre>
               ) : (
-                <div style={{ padding: '40px', textAlign: 'center', color: '#8695a4', border: `2px dashed ${CELL_BORDER}`, borderRadius: '10px' }}>{t.noText}</div>
+                <div style={{ padding: '46px', textAlign: 'center', color: '#8695a4', border: `2px dashed ${CELL_BORDER}`, borderRadius: '10px' }}>{t.noText}</div>
               )}
             </div>
           </div>
@@ -1199,7 +1219,7 @@ const MyUploadsPage: React.FC = () => {
       {deleteJob && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(7,30,46,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}
           onClick={() => !isDeleting && setDeleteJob(null)}>
-          <div style={{ background: 'white', borderRadius: '18px', padding: '28px', width: '520px', maxWidth: '100%', boxShadow: '0 32px 64px rgba(0,0,0,0.3)' }}
+          <div style={{ background: 'white', borderRadius: '18px', padding: '28px', width: '540px', maxWidth: '100%', boxShadow: '0 32px 64px rgba(0,0,0,0.3)' }}
             onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '11px', marginBottom: '18px' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '26px', color: '#b91c1c' }}>warning</span>
@@ -1209,7 +1229,7 @@ const MyUploadsPage: React.FC = () => {
             <div style={{ padding: '18px', background: '#fdeaea', border: '1px solid #f3a9a9', borderRadius: '12px', marginBottom: '22px' }}>
               <div style={{ fontSize: '14px', color: '#25313d', marginBottom: '12px' }}>{t.deleteConfirm}</div>
               <div style={{ fontSize: '13px', color: '#5b6775', lineHeight: 1.9 }}>
-                <div>{t.colJob}: <strong style={{ fontFamily: 'monospace', color: '#b91c1c' }}>{deleteJob.unique_job_id}</strong></div>
+                <div>{t.colFilename}: <strong style={{ color: NAVY }}>{deleteJob.filename}</strong></div>
                 <div>{t.colStatus}: <strong>{statusStyle(deleteJob.status).label}</strong></div>
                 <div>{t.colCreated}: <strong>{formatDateTime(deleteJob.created_at)}</strong></div>
                 <div>{t.colChars}: <strong>{formatNumber(deleteJob.extracted_text_length)}</strong></div>
@@ -1253,8 +1273,7 @@ const MyUploadsPage: React.FC = () => {
                 <a key={s.alt} href={s.href} target="_blank" rel="noopener noreferrer"
                   style={{ width: '36px', height: '36px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.07)', transition: 'background 0.2s, transform 0.15s' }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.18)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; }}
-                >
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; }}>
                   <img src={s.src} alt={s.alt} style={{ width: s.w, height: s.w, objectFit: 'contain' }} />
                 </a>
               ))}
@@ -1362,6 +1381,9 @@ const MyUploadsPage: React.FC = () => {
         pre::-webkit-scrollbar { width:10px; height:10px; }
         pre::-webkit-scrollbar-thumb { background:#b9c4d0; border-radius:6px; }
         input:focus, select:focus { border-color:${NAVY} !important; box-shadow:0 0 0 3px rgba(10,59,92,0.10); }
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+        input[type="number"] { -moz-appearance:textfield; }
         button:focus-visible { outline:2px solid ${GOLD}; outline-offset:2px; }
       `}</style>
     </div>
